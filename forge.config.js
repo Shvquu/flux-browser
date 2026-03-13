@@ -6,15 +6,15 @@ module.exports = {
   },
   makers: [
   // Windows – .exe Installer
-  { name: '@electron-forge/maker-squirrel', config: { authors: 'Shvquu' } },
+  { name: '@electron-forge/maker-squirrel', config: { authors: 'FLUX Browser',  homepage: 'https://fluxprivacy.app/' } },
 
   // macOS – .dmg Installer (schönes Drag-to-Applications Fenster)
-  { name: '@electron-forge/maker-dmg', config: { name: 'FLUX Browser' } },
+  { name: '@electron-forge/maker-dmg', config: { name: 'FLUX Browser',  homepage: 'https://fluxprivacy.app/' } },
 
   // Linux – .deb (Debian/Ubuntu)
-  { name: '@electron-forge/maker-deb', config: { options: { maintainer: 'Shvquu', homepage: 'https://shvquu.de/flux' } } },
+  { name: '@electron-forge/maker-deb', config: { options: { maintainer: 'FLUX Browser', homepage: 'https://fluxprivacy.app/' } } },
 
   // Linux – .rpm (Fedora/RedHat)
-  { name: '@electron-forge/maker-rpm', config: { options: { maintainer: 'Shvquu' } } },
+  { name: '@electron-forge/maker-rpm', config: { options: { maintainer: 'FLUX Browser', homepage: 'https://fluxprivacy.app/' } } },
   ],
 }
