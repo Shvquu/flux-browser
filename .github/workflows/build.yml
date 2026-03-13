@@ -1,91 +1,89 @@
 # ============================================================
 # .github/workflows/build.yml
 #
-# GitHub Actions Workflow für FLUX Browser
+# WIE EIN RELEASE FUNKTIONIERT:
 #
-# Was passiert hier?
-# Jedes Mal wenn du Code auf GitHub pushst (oder einen Release
-# erstellst), startet GitHub automatisch 3 Build-Jobs parallel:
-#   • Windows  → .exe Installer
-#   • macOS    → .dmg Installer
-#   • Linux    → .deb + .rpm Paket
+#   1. Du pushst einen Tag:
+#        git tag v1.0.1
+#        git push origin v1.0.1
 #
-# Die fertigen Dateien werden als "Artifacts" hochgeladen und
-# sind direkt im GitHub-Repository unter "Actions" downloadbar.
-# Bei einem Release werden sie automatisch angehängt.
+#   2. GitHub startet automatisch diesen Workflow.
+#
+#   3. Alle 3 Plattformen werden parallel gebaut.
+#
+#   4. Jeder Build-Job lädt seine Datei (.exe / .dmg / .deb+.rpm)
+#      DIREKT in den GitHub-Release hoch – kein separater Job,
+#      kein manuelles Klicken, keine Fehlerquelle dazwischen.
+#
+#   5. Fertig. Der Release ist vollständig befüllt.
+#
+# Bei normalem Push auf main: nur bauen, kein Release erstellen.
 # ============================================================
 
 name: Build FLUX Browser
 
-# ── Wann soll dieser Workflow laufen? ─────────────────────
 on:
-  # Bei jedem Push auf den main-Branch
   push:
     branches: [ main ]
-
-  # Bei Pull Requests auf main (zum Testen)
-  pull_request:
-    branches: [ main ]
-
-  # Bei einem neuen Release-Tag (z.B. v1.0.0)
-  # → Dateien werden automatisch dem Release angehängt
-  release:
-    types: [ created ]
-
-  # Manuell auslösen über die GitHub-Oberfläche
+    tags:
+      - 'v*'
   workflow_dispatch:
 
-# ── Jobs ──────────────────────────────────────────────────
-# Alle 3 Jobs laufen PARALLEL – spart Zeit
+permissions:
+  contents: write
+
 jobs:
 
   # ────────────────────────────────────────────────────────
-  # JOB 1: Windows Build → .exe
+  # JOB 1: Windows → .exe
   # ────────────────────────────────────────────────────────
   build-windows:
     name: Windows (.exe)
-    runs-on: windows-latest   # GitHub stellt eine Windows-VM
+    runs-on: windows-latest
 
     steps:
-      # 1. Repository-Code auschecken
       - name: Code auschecken
         uses: actions/checkout@v4
 
-      # 2. Node.js installieren
       - name: Node.js einrichten
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm              # npm-Cache für schnellere Builds
+          cache: npm
 
-      # 3. Abhängigkeiten installieren
-      - name: npm install
-        run: npm ci               # "ci" ist schneller und deterministischer als "install"
+      - name: Abhängigkeiten installieren
+        run: npm ci
 
-      # 4. Build ausführen
-      # GITHUB_TOKEN wird automatisch von GitHub bereitgestellt –
-      # kein manuelles Einrichten nötig!
-      - name: App bauen (Windows)
+      - name: App bauen
         run: npm run make
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # 5. Build-Ergebnis hochladen
-      # Danach unter Actions → dein Workflow → Artifacts downloadbar
-      - name: Artifact hochladen
+      - name: Build-Dateien anzeigen
+        run: Get-ChildItem -Recurse out/make
+        shell: pwsh
+
+      - name: In Release hochladen
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: out/make/**/*.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Als Artifact speichern
         uses: actions/upload-artifact@v4
         with:
           name: flux-browser-windows
-          # Electron Forge legt alle Ausgaben in out/make/ ab
-          path: out/make/**/*
-          retention-days: 30      # Nach 30 Tagen automatisch gelöscht
+          path: out/make/**/*.exe
+          retention-days: 30
 
   # ────────────────────────────────────────────────────────
-  # JOB 2: macOS Build → .dmg
+  # JOB 2: macOS → .dmg + .zip
   # ────────────────────────────────────────────────────────
   build-macos:
     name: macOS (.dmg / .zip)
-    runs-on: macos-latest     # GitHub stellt eine macOS-VM
+    runs-on: macos-latest
 
     steps:
       - name: Code auschecken
@@ -97,27 +95,42 @@ jobs:
           node-version: 20
           cache: npm
 
-      - name: npm install
+      - name: Abhängigkeiten installieren
         run: npm ci
 
-      - name: App bauen (macOS)
+      - name: App bauen
         run: npm run make
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Artifact hochladen
+      - name: Build-Dateien anzeigen
+        run: find out/make -type f
+
+      - name: In Release hochladen
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            out/make/**/*.dmg
+            out/make/**/*.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Als Artifact speichern
         uses: actions/upload-artifact@v4
         with:
           name: flux-browser-macos
-          path: out/make/**/*
+          path: |
+            out/make/**/*.dmg
+            out/make/**/*.zip
           retention-days: 30
 
   # ────────────────────────────────────────────────────────
-  # JOB 3: Linux Build → .deb + .rpm
+  # JOB 3: Linux → .deb + .rpm
   # ────────────────────────────────────────────────────────
   build-linux:
     name: Linux (.deb / .rpm)
-    runs-on: ubuntu-latest    # GitHub stellt eine Ubuntu-VM
+    runs-on: ubuntu-latest
 
     steps:
       - name: Code auschecken
@@ -129,9 +142,7 @@ jobs:
           node-version: 20
           cache: npm
 
-      # Linux braucht zusätzliche System-Bibliotheken für Electron
-      # Hinweis: Ubuntu 24.04 (Noble) hat libasound2 → libasound2t64 umbenannt
-      - name: Linux-Abhängigkeiten installieren
+      - name: System-Bibliotheken installieren
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -142,59 +153,32 @@ jobs:
             libasound2t64 \
             rpm
 
-      - name: npm install
+      - name: Abhängigkeiten installieren
         run: npm ci
 
-      - name: App bauen (Linux)
+      - name: App bauen
         run: npm run make
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Artifact hochladen
-        uses: actions/upload-artifact@v4
-        with:
-          name: flux-browser-linux
-          path: out/make/**/*
-          retention-days: 30
+      - name: Build-Dateien anzeigen
+        run: find out/make -type f
 
-  # ────────────────────────────────────────────────────────
-  # JOB 4: Release-Dateien anhängen (nur bei neuem Release)
-  # Läuft erst nachdem alle 3 Build-Jobs erfolgreich waren
-  # ────────────────────────────────────────────────────────
-  attach-release:
-    name: Release Assets hochladen
-    # Nur ausführen wenn ein neuer Release erstellt wurde
-    if: github.event_name == 'release'
-    # Wartet bis alle Build-Jobs fertig sind
-    needs: [ build-windows, build-macos, build-linux ]
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Windows Artifact herunterladen
-        uses: actions/download-artifact@v4
-        with:
-          name: flux-browser-windows
-          path: artifacts/windows
-
-      - name: macOS Artifact herunterladen
-        uses: actions/download-artifact@v4
-        with:
-          name: flux-browser-macos
-          path: artifacts/macos
-
-      - name: Linux Artifact herunterladen
-        uses: actions/download-artifact@v4
-        with:
-          name: flux-browser-linux
-          path: artifacts/linux
-
-      # Alle Dateien dem GitHub-Release anhängen
-      - name: Dateien dem Release anhängen
+      - name: In Release hochladen
+        if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            artifacts/windows/**/*
-            artifacts/macos/**/*
-            artifacts/linux/**/*
+            out/make/**/*.deb
+            out/make/**/*.rpm
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Als Artifact speichern
+        uses: actions/upload-artifact@v4
+        with:
+          name: flux-browser-linux
+          path: |
+            out/make/**/*.deb
+            out/make/**/*.rpm
+          retention-days: 30
