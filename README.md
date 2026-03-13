@@ -16,6 +16,18 @@
 
 ---
 
+## Downloads
+
+[![GitHub Releases](https://img.shields.io/github/downloads/Shvquu/flux-browser/total?style=flat-square&color=9b3dff&label=Downloads)](https://github.com/Shvquu/flux-browser/releases)
+
+| Plattform | Datei | Download |
+|-----------|-------|---------|
+| 🪟 Windows | `.exe` Installer | [Neueste Version](https://github.com/Shvquu/flux-browser/releases/latest) |
+| 🍎 macOS | `.dmg` | [Neueste Version](https://github.com/Shvquu/flux-browser/releases/latest) |
+| 🐧 Linux | `.deb` / `.rpm` | [Neueste Version](https://github.com/Shvquu/flux-browser/releases/latest) |
+
+[→ Alle Releases und frühere Versionen ansehen](https://github.com/Shvquu/flux-browser/releases)
+
 ## Inhaltsverzeichnis
 
 - [Über FLUX](#über-flux)
