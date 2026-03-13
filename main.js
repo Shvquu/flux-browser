@@ -111,6 +111,106 @@ const fingerprintStats = {
   total:     0,
 }
 
+// ── FLUX Trust Network ────────────────────────────────────
+// Speichert Trust-Level und API-Permissions pro Domain.
+// Nur im Arbeitsspeicher – wird niemals gespeichert oder übertragen.
+//
+// Trust-Level:
+//   0 = strict    → alle fingerprint APIs blockiert/anonymisiert, Warnung
+//   1 = standard  → APIs anonymisiert (Standard für neue Seiten)
+//   2 = trusted   → APIs erlaubt, nur Tracker-Blocking aktiv
+//
+// Permissions pro API: 'anonymize' | 'allow' | 'block'
+const trustStore = new Map()  // domain → { level, permissions, requestCount }
+
+const TRUST_LEVELS = { strict: 0, standard: 1, trusted: 2 }
+
+const DEFAULT_PERMISSIONS = {
+  canvas:    'anonymize',
+  webgl:     'anonymize',
+  audio:     'anonymize',
+  navigator: 'anonymize',
+  screen:    'anonymize',
+  storage:   'allow',
+}
+
+function defaultTrustConfig() {
+  return {
+    level: 1,  // standard
+    permissions: { ...DEFAULT_PERMISSIONS },
+    requestCount: 0,
+    firstSeen: Date.now(),
+  }
+}
+
+function getTrust(domain) {
+  if (!domain || domain === 'about:blank') return defaultTrustConfig()
+  if (!trustStore.has(domain)) trustStore.set(domain, defaultTrustConfig())
+  return trustStore.get(domain)
+}
+
+function setupTrustIPC() {
+  // Trust-Config für eine Domain abrufen
+  ipcMain.handle('trust-get', (_, domain) => getTrust(domain))
+
+  // Trust-Config setzen (Level oder einzelne Permission)
+  ipcMain.on('trust-set', (_, domain, config) => {
+    const current = getTrust(domain)
+    const updated = { ...current, ...config,
+      permissions: { ...current.permissions, ...(config.permissions || {}) }
+    }
+    trustStore.set(domain, updated)
+    // Alle Fenster informieren
+    BrowserWindow.getAllWindows().forEach(w =>
+      w.webContents.send('trust-updated', domain, updated)
+    )
+  })
+
+  // Alle Trust-Einträge abrufen (für flux://trust Seite)
+  ipcMain.handle('trust-get-all', () => {
+    const result = {}
+    trustStore.forEach((v, k) => { result[k] = v })
+    return result
+  })
+
+  // Domain aus Trust-Store entfernen (Reset)
+  ipcMain.on('trust-reset', (_, domain) => {
+    trustStore.delete(domain)
+    BrowserWindow.getAllWindows().forEach(w =>
+      w.webContents.send('trust-updated', domain, defaultTrustConfig())
+    )
+  })
+
+  // Fingerprint-Versuch melden + Trust requestCount erhöhen
+  ipcMain.on('trust-fp-request', (_, domain, apiType) => {
+    const t = getTrust(domain)
+    t.requestCount = (t.requestCount || 0) + 1
+    trustStore.set(domain, t)
+    // Fingerprint-Stats auch im fp-System zählen
+    fingerprintStats[apiType] = (fingerprintStats[apiType] || 0) + 1
+    fingerprintStats.total++
+    BrowserWindow.getAllWindows().forEach(w =>
+      w.webContents.send('fp-stats-update', fingerprintStats)
+    )
+  })
+}
+
+// ── Ephemeral Tabs – Session Cleanup ──────────────────────
+function setupEphemeralIPC() {
+  // Renderer meldet: Ephemeral-Tab wurde geschlossen → Partition löschen
+  ipcMain.handle('ephemeral-clear', async (_, partitionName) => {
+    try {
+      const { session } = require('electron')
+      const s = session.fromPartition(partitionName)
+      await s.clearStorageData()
+      await s.clearCache()
+      await s.clearAuthCache()
+    } catch (e) {
+      console.error('Ephemeral clear failed:', e)
+    }
+  })
+}
+
 function setupFingerprintIPC() {
   // Renderer fragt Stats ab
   ipcMain.handle('fp-get-stats', () => fingerprintStats)
@@ -182,6 +282,8 @@ app.whenReady().then(() => {
   setupNetworkFilter()
   setupShieldIPC()
   setupFingerprintIPC()
+  setupEphemeralIPC()
+  setupTrustIPC()
   createWindow()
 
   app.on('activate', () => {

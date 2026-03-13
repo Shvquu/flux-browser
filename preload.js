@@ -15,6 +15,31 @@ contextBridge.exposeInMainWorld('windowAPI', {
   }
 })
 
+// ── FLUX Trust Network API ───────────────────────────────
+contextBridge.exposeInMainWorld('trustAPI', {
+  // Trust-Config für Domain abrufen
+  get:      (domain)         => ipcRenderer.invoke('trust-get', domain),
+  // Trust-Config setzen { level?, permissions?: { canvas?, webgl?, ... } }
+  set:      (domain, config) => ipcRenderer.send('trust-set', domain, config),
+  // Alle bekannten Domains abrufen
+  getAll:   ()               => ipcRenderer.invoke('trust-get-all'),
+  // Domain zurücksetzen
+  reset:    (domain)         => ipcRenderer.send('trust-reset', domain),
+  // Fingerprint-API-Versuch melden (aus Webview via ipc-message)
+  reportFP: (domain, type)   => ipcRenderer.send('trust-fp-request', domain, type),
+  // Updates empfangen wenn Trust sich ändert
+  onUpdate: (cb) => {
+    ipcRenderer.removeAllListeners('trust-updated')
+    ipcRenderer.on('trust-updated', (_, domain, config) => cb(domain, config))
+  },
+})
+
+// ── Ephemeral Tab API ─────────────────────────────────────
+contextBridge.exposeInMainWorld('ephemeralAPI', {
+  // Partition-Daten löschen wenn Tab geschlossen wird
+  clear: (partitionName) => ipcRenderer.invoke('ephemeral-clear', partitionName),
+})
+
 // ── FLUX Fingerprint API ──────────────────────────────────
 contextBridge.exposeInMainWorld('fingerprintAPI', {
   // Preload-Pfad für Webviews holen
