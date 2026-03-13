@@ -271,4 +271,4 @@ Weitere Informationen: [Electron Security Documentation](https://www.electronjs.
 
 ## Lizenz
 
-MIT – siehe [LICENSE.md](LICENSE.md)
+MIT – siehe [LICENSE.md](LICENSE.MD)

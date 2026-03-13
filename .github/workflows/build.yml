@@ -1,0 +1,199 @@
+# ============================================================
+# .github/workflows/build.yml
+#
+# GitHub Actions Workflow für FLUX Browser
+#
+# Was passiert hier?
+# Jedes Mal wenn du Code auf GitHub pushst (oder einen Release
+# erstellst), startet GitHub automatisch 3 Build-Jobs parallel:
+#   • Windows  → .exe Installer
+#   • macOS    → .dmg Installer
+#   • Linux    → .deb + .rpm Paket
+#
+# Die fertigen Dateien werden als "Artifacts" hochgeladen und
+# sind direkt im GitHub-Repository unter "Actions" downloadbar.
+# Bei einem Release werden sie automatisch angehängt.
+# ============================================================
+
+name: Build FLUX Browser
+
+# ── Wann soll dieser Workflow laufen? ─────────────────────
+on:
+  # Bei jedem Push auf den main-Branch
+  push:
+    branches: [ main ]
+
+  # Bei Pull Requests auf main (zum Testen)
+  pull_request:
+    branches: [ main ]
+
+  # Bei einem neuen Release-Tag (z.B. v1.0.0)
+  # → Dateien werden automatisch dem Release angehängt
+  release:
+    types: [ created ]
+
+  # Manuell auslösen über die GitHub-Oberfläche
+  workflow_dispatch:
+
+# ── Jobs ──────────────────────────────────────────────────
+# Alle 3 Jobs laufen PARALLEL – spart Zeit
+jobs:
+
+  # ────────────────────────────────────────────────────────
+  # JOB 1: Windows Build → .exe
+  # ────────────────────────────────────────────────────────
+  build-windows:
+    name: Windows (.exe)
+    runs-on: windows-latest   # GitHub stellt eine Windows-VM
+
+    steps:
+      # 1. Repository-Code auschecken
+      - name: Code auschecken
+        uses: actions/checkout@v4
+
+      # 2. Node.js installieren
+      - name: Node.js einrichten
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm              # npm-Cache für schnellere Builds
+
+      # 3. Abhängigkeiten installieren
+      - name: npm install
+        run: npm ci               # "ci" ist schneller und deterministischer als "install"
+
+      # 4. Build ausführen
+      # GITHUB_TOKEN wird automatisch von GitHub bereitgestellt –
+      # kein manuelles Einrichten nötig!
+      - name: App bauen (Windows)
+        run: npm run make
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # 5. Build-Ergebnis hochladen
+      # Danach unter Actions → dein Workflow → Artifacts downloadbar
+      - name: Artifact hochladen
+        uses: actions/upload-artifact@v4
+        with:
+          name: flux-browser-windows
+          # Electron Forge legt alle Ausgaben in out/make/ ab
+          path: out/make/**/*
+          retention-days: 30      # Nach 30 Tagen automatisch gelöscht
+
+  # ────────────────────────────────────────────────────────
+  # JOB 2: macOS Build → .dmg
+  # ────────────────────────────────────────────────────────
+  build-macos:
+    name: macOS (.dmg / .zip)
+    runs-on: macos-latest     # GitHub stellt eine macOS-VM
+
+    steps:
+      - name: Code auschecken
+        uses: actions/checkout@v4
+
+      - name: Node.js einrichten
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: npm install
+        run: npm ci
+
+      - name: App bauen (macOS)
+        run: npm run make
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Artifact hochladen
+        uses: actions/upload-artifact@v4
+        with:
+          name: flux-browser-macos
+          path: out/make/**/*
+          retention-days: 30
+
+  # ────────────────────────────────────────────────────────
+  # JOB 3: Linux Build → .deb + .rpm
+  # ────────────────────────────────────────────────────────
+  build-linux:
+    name: Linux (.deb / .rpm)
+    runs-on: ubuntu-latest    # GitHub stellt eine Ubuntu-VM
+
+    steps:
+      - name: Code auschecken
+        uses: actions/checkout@v4
+
+      - name: Node.js einrichten
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      # Linux braucht zusätzliche System-Bibliotheken für Electron
+      - name: Linux-Abhängigkeiten installieren
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libgtk-3-dev \
+            libnotify-dev \
+            libnss3 \
+            libxss1 \
+            libasound2 \
+            rpm          # Für .rpm-Pakete
+
+      - name: npm install
+        run: npm ci
+
+      - name: App bauen (Linux)
+        run: npm run make
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Artifact hochladen
+        uses: actions/upload-artifact@v4
+        with:
+          name: flux-browser-linux
+          path: out/make/**/*
+          retention-days: 30
+
+  # ────────────────────────────────────────────────────────
+  # JOB 4: Release-Dateien anhängen (nur bei neuem Release)
+  # Läuft erst nachdem alle 3 Build-Jobs erfolgreich waren
+  # ────────────────────────────────────────────────────────
+  attach-release:
+    name: Release Assets hochladen
+    # Nur ausführen wenn ein neuer Release erstellt wurde
+    if: github.event_name == 'release'
+    # Wartet bis alle Build-Jobs fertig sind
+    needs: [ build-windows, build-macos, build-linux ]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Windows Artifact herunterladen
+        uses: actions/download-artifact@v4
+        with:
+          name: flux-browser-windows
+          path: artifacts/windows
+
+      - name: macOS Artifact herunterladen
+        uses: actions/download-artifact@v4
+        with:
+          name: flux-browser-macos
+          path: artifacts/macos
+
+      - name: Linux Artifact herunterladen
+        uses: actions/download-artifact@v4
+        with:
+          name: flux-browser-linux
+          path: artifacts/linux
+
+      # Alle Dateien dem GitHub-Release anhängen
+      - name: Dateien dem Release anhängen
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/windows/**/*
+            artifacts/macos/**/*
+            artifacts/linux/**/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

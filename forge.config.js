@@ -5,17 +5,16 @@ module.exports = {
     icon: './renderer/flux',
   },
   makers: [
-    {
-      name: '@electron-forge/maker-squirrel',
-      config: {
-        name: 'flux_browser',
-        authors: 'Shvquu',          // ← das war das Problem
-        description: 'Futuristischer Browser auf Electron-Basis',
-        setupIcon: './renderer/flux.ico',
-      },
-    },
-    {
-      name: '@electron-forge/maker-zip',
-    },
+  // Windows – .exe Installer
+  { name: '@electron-forge/maker-squirrel', config: { authors: 'Shvquu' } },
+
+  // macOS – .dmg Installer (schönes Drag-to-Applications Fenster)
+  { name: '@electron-forge/maker-dmg', config: { name: 'FLUX Browser' } },
+
+  // Linux – .deb (Debian/Ubuntu)
+  { name: '@electron-forge/maker-deb', config: { options: { maintainer: 'Shvquu', homepage: 'https://shvquu.de/flux' } } },
+
+  // Linux – .rpm (Fedora/RedHat)
+  { name: '@electron-forge/maker-rpm', config: { options: { maintainer: 'Shvquu' } } },
   ],
 }
