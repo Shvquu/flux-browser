@@ -1,32 +1,56 @@
 // ============================================================
-// preload.js – Preload Script (Sichere Brücke)
-//
-// Dieses Script läuft in einem privilegierten Kontext:
-// Es hat Zugriff auf Node.js UND auf das DOM – aber NUR hier.
-//
-// contextBridge.exposeInMainWorld() erlaubt es uns,
-// explizit definierte APIs sicher an den Renderer weiterzugeben.
-// Der Renderer kann NUR diese APIs nutzen – sonst nichts.
+// preload.js – Secure Bridge between Main and Renderer
 // ============================================================
 
 const { contextBridge, ipcRenderer } = require('electron')
 
-// ── API für den Renderer bereitstellen ────────────────────
-// 'windowAPI' ist der Name, unter dem der Renderer diese Methoden
-// über window.windowAPI aufruft.
 contextBridge.exposeInMainWorld('windowAPI', {
-
-  // Fensterbefehle: Renderer → Main Process
   minimize: () => ipcRenderer.send('window-minimize'),
   maximize: () => ipcRenderer.send('window-maximize'),
   close:    () => ipcRenderer.send('window-close'),
 
-  // Fenster-Status-Updates: Main Process → Renderer
-  // Der Renderer übergibt eine Callback-Funktion, die aufgerufen wird,
-  // wenn sich der Fenster-Status ändert.
   onWindowState: (callback) => {
-    // Einmaliger Listener – kein Memory Leak durch Doppelanmeldung
     ipcRenderer.removeAllListeners('window-state')
     ipcRenderer.on('window-state', (_, state) => callback(state))
+  }
+})
+
+// ── FLUX Fingerprint API ──────────────────────────────────
+contextBridge.exposeInMainWorld('fingerprintAPI', {
+  // Preload-Pfad für Webviews holen
+  getPreloadPath: () => ipcRenderer.invoke('fp-get-preload-path'),
+
+  // Aktuelle Stats abrufen
+  getStats: () => ipcRenderer.invoke('fp-get-stats'),
+
+  // Einen Fingerprint-Versuch melden
+  reportAttempt: (type) => ipcRenderer.send('fp-attempt', type),
+
+  // Live-Updates empfangen
+  onStatsUpdate: (callback) => {
+    ipcRenderer.removeAllListeners('fp-stats-update')
+    ipcRenderer.on('fp-stats-update', (_, stats) => callback(stats))
+  },
+})
+
+// ── FLUX Shield API ───────────────────────────────────────
+contextBridge.exposeInMainWorld('shieldAPI', {
+
+  // Aktuellen Status + Log abrufen
+  getStatus: () => ipcRenderer.invoke('shield-get-status'),
+
+  // Shield ein-/ausschalten
+  toggle: (enable) => ipcRenderer.send('shield-toggle', enable),
+
+  // Live-Updates empfangen wenn neue Verbindungen geloggt werden
+  onLogUpdate: (callback) => {
+    ipcRenderer.removeAllListeners('shield-log-update')
+    ipcRenderer.on('shield-log-update', (_, log) => callback(log))
+  },
+
+  // Shield-Status-Änderungen empfangen (z.B. wenn ein anderes Fenster umschaltet)
+  onStatusChanged: (callback) => {
+    ipcRenderer.removeAllListeners('shield-status-changed')
+    ipcRenderer.on('shield-status-changed', (_, enabled) => callback(enabled))
   }
 })

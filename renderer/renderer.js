@@ -29,6 +29,7 @@ const dom = {
   btnReload:        document.getElementById('btn-reload'),
   btnNewTab:        document.getElementById('btn-new-tab'),
   btnHome:          document.getElementById('btn-home'),
+  btnShield:        document.getElementById('btn-shield'),
   btnMinimize:      document.getElementById('btn-minimize'),
   btnMaximize:      document.getElementById('btn-maximize'),
   btnClose:         document.getElementById('btn-close'),
@@ -41,6 +42,19 @@ const state = {
   tabs: [],           // Array aller Tab-Objekte
   activeTabId: null,  // ID des aktuell sichtbaren Tabs
   tabCounter: 0,      // Zähler für eindeutige Tab-IDs
+}
+
+// ── Fingerprint State ────────────────────────────────────────
+const fp = {
+  preloadPath: null,   // Pfad zu fingerprint-guard.js
+  stats: { canvas: 0, webgl: 0, audio: 0, navigator: 0, screen: 0, total: 0 },
+}
+
+// ── Shield State ───────────────────────────────────────────
+const shield = {
+  enabled: true,
+  blockedCount: 0,
+  log: [],
 }
 
 // ── Konfiguration ─────────────────────────────────────────
@@ -61,6 +75,10 @@ const CONFIG = {
 function parseInput(input) {
   input = input.trim()
   if (!input) return CONFIG.HOME_URL
+
+  // flux:// interne Seiten
+  if (input === 'flux://network')  return 'flux://network'
+  if (input === 'flux://privacy')  return 'flux://privacy'
 
   // Gültige URL mit Protokoll? → direkt verwenden
   try {
@@ -322,12 +340,13 @@ function createTab(url = null) {
   dom.tabsContainer.appendChild(tabEl)
 
   // ── Webview-Element erstellen ──
-  // <webview> ist ein Electron-spezifisches Element.
-  // Es lädt Webinhalte in einem komplett isolierten Prozess (Sandbox).
   const webview = document.createElement('webview')
-
-  // Sicherheit: Webview-interne Sandbox aktivieren
   webview.setAttribute('allowpopups', 'false')
+
+  // Fingerprint-Guard in jeden Webview injizieren
+  if (fp.preloadPath) {
+    webview.setAttribute('preload', `file://${fp.preloadPath}`)
+  }
 
   if (isNewTab) {
     // Statt einer Seite zu laden, zeigen wir unsere Startseite
@@ -358,21 +377,41 @@ function createTab(url = null) {
  * Wechselt zum angegebenen Tab und zeigt seinen Webview an.
  */
 function activateTab(id) {
-  // Vorherigen Tab deaktivieren
+  // Vorherigen Tab deaktivieren + seine Network-Seite verstecken
   const prevTab = getActiveTab()
   if (prevTab) {
     prevTab.tabEl.classList.remove('active')
     prevTab.webview.classList.remove('active')
     prevTab.newTabScreen?.classList.add('hidden')
+
+    // Network-Seite des alten Tabs verstecken (nicht löschen)
+    const prevNet = document.getElementById(`flux-network-${prevTab.id}`)
+    if (prevNet) prevNet.style.display = 'none'
   }
 
   const tab = getTab(id)
   if (!tab) return
 
   tab.tabEl.classList.add('active')
-  tab.webview.classList.add('active')
-  tab.newTabScreen?.classList.remove('hidden')
   state.activeTabId = id
+
+  if (tab.isNetworkPage) {
+    const netPage = document.getElementById(`flux-network-${tab.id}`)
+    if (netPage) { netPage.style.display = 'block' } else { renderNetworkPage(tab.id) }
+    dom.urlInput.value = 'flux://network'
+  } else if (tab.isPrivacyPage) {
+    const privPage = document.getElementById(`flux-privacy-${tab.id}`)
+    if (privPage) { privPage.style.display = 'block' } else { renderPrivacyPage(tab.id) }
+    dom.urlInput.value = 'flux://privacy'
+  } else {
+    tab.webview.classList.add('active')
+    tab.newTabScreen?.classList.remove('hidden')
+    // Interne Seiten verstecken
+    const netPage  = document.getElementById(`flux-network-${tab.id}`)
+    const privPage = document.getElementById(`flux-privacy-${tab.id}`)
+    if (netPage)  netPage.style.display  = 'none'
+    if (privPage) privPage.style.display = 'none'
+  }
 
   // Navbar aktualisieren
   updateNavbar(tab)
@@ -391,6 +430,8 @@ function closeTab(id) {
   tab.tabEl.remove()
   tab.webview.remove()
   tab.newTabScreen?.remove()
+  document.getElementById(`flux-network-${tab.id}`)?.remove()
+  document.getElementById(`flux-privacy-${tab.id}`)?.remove()
 
   // Aus State entfernen
   state.tabs.splice(index, 1)
@@ -543,8 +584,50 @@ function navigate(input) {
     tab.newTabScreen = null
   }
 
+  // flux://privacy → interne Privacy-Seite
+  if (url === 'flux://privacy') {
+    document.querySelectorAll('.flux-privacy-page').forEach(el => el.remove())
+    tab.isPrivacyPage = true
+    tab.isNetworkPage = false
+    dom.urlInput.value = 'flux://privacy'
+    dom.urlInput.blur()
+    const titleEl = tab.tabEl.querySelector('.tab-title')
+    if (titleEl) titleEl.textContent = 'FLUX Privacy'
+    renderPrivacyPage(tab.id)
+    return
+  }
+
+  // flux://network → interne Shield-Seite anzeigen
+  if (url === 'flux://network') {
+    document.querySelectorAll('.flux-network-page').forEach(el => el.remove())
+    tab.isNetworkPage = true
+    tab.isPrivacyPage = false
+    dom.urlInput.value = 'flux://network'
+    dom.urlInput.blur()
+    const titleEl = tab.tabEl.querySelector('.tab-title')
+    if (titleEl) titleEl.textContent = 'FLUX Network'
+    renderNetworkPage(tab.id)
+    return
+  }
+
+  // Privacy-Seite verstecken
+  if (tab.isPrivacyPage) {
+    tab.isPrivacyPage = false
+    const privPage = document.getElementById(`flux-privacy-${tab.id}`)
+    if (privPage) privPage.style.display = 'none'
+    tab.webview.classList.add('active')
+  }
+
+  // Normale URL → Network-Seite verstecken und Webview wieder zeigen
+  if (tab.isNetworkPage) {
+    tab.isNetworkPage = false
+    const netPage = document.getElementById(`flux-network-${tab.id}`)
+    if (netPage) netPage.style.display = 'none'
+    tab.webview.classList.add('active')
+  }
+
   tab.webview.loadURL(url)
-  dom.urlInput.blur()  // Tastatur-Fokus entfernen
+  dom.urlInput.blur()
 }
 
 // ── EVENT-LISTENER (UI-Interaktion) ───────────────────────
@@ -611,10 +694,346 @@ document.addEventListener('keydown', (e) => {
   }
 })
 
+// ── flux://privacy Seite ──────────────────────────────────
+
+function renderPrivacyPage(tabId) {
+  const tab = getTab(tabId)
+  if (!tab) return
+
+  const existing = document.getElementById(`flux-privacy-${tabId}`)
+  if (existing) existing.remove()
+
+  const s = fp.stats
+  const protections = [
+    { name: 'Canvas Fingerprint',   status: true,           attempts: s.canvas,          desc: 'Pixel noise injected into every canvas render' },
+    { name: 'WebGL Fingerprint',    status: true,           attempts: s.webgl,           desc: 'GPU renderer & vendor strings randomized' },
+    { name: 'Audio Fingerprint',    status: true,           attempts: s.audio,           desc: 'Micro-noise added to AudioContext output' },
+    { name: 'Navigator Properties', status: true,           attempts: s.navigator,       desc: 'CPU cores, device memory & platform randomized' },
+    { name: 'Screen Resolution',    status: true,           attempts: s.screen,          desc: 'Screen dimensions varied per session' },
+    { name: 'Timing Precision',     status: true,           attempts: 0,                 desc: 'performance.now() resolution reduced to 1ms' },
+    { name: 'FLUX Shield',          status: shield.enabled, attempts: shield.blockedCount, desc: 'Zero-Connection Mode — tracker & background blocking' },
+  ]
+
+  // Inline-Styles: unabhängig von externen CSS-Klassen
+  const C = {
+    bg:        '#060508',
+    surface:   'rgba(10,7,14,0.95)',
+    border:    'rgba(140,60,255,0.18)',
+    accent:    '#5ce0ff',
+    accent2:   '#9b3dff',
+    text:      '#e8d8ff',
+    muted:     'rgba(210,180,255,0.55)',
+    green:     '#4ade80',
+    red:       '#f87171',
+  }
+
+  const rows = protections.map(p => `
+    <div style="
+      display:flex; align-items:center; justify-content:space-between;
+      padding:14px 18px; margin-bottom:6px;
+      background:rgba(12,8,20,0.6);
+      border:1px solid ${p.status ? 'rgba(140,60,255,0.2)' : C.border};
+      border-left:3px solid ${p.status ? C.accent2 : 'rgba(140,60,255,0.2)'};
+      border-radius:10px;">
+      <div style="display:flex; flex-direction:column; gap:3px;">
+        <span style="font-size:13px; font-weight:600; color:${C.text};">${p.name}</span>
+        <span style="font-size:11px; color:${C.muted};">${p.desc}</span>
+      </div>
+      <div style="display:flex; align-items:center; gap:10px; flex-shrink:0; margin-left:16px;">
+        ${p.attempts > 0 ? `<span style="font-family:monospace; font-size:10px; color:${C.accent2}; background:rgba(155,61,255,0.12); padding:2px 8px; border-radius:4px;">${p.attempts} attempts</span>` : ''}
+        <span style="font-size:10px; font-weight:700; padding:3px 10px; border-radius:6px; letter-spacing:0.5px;
+          background:${p.status ? 'rgba(74,222,128,0.12)' : 'rgba(255,255,255,0.05)'};
+          color:${p.status ? C.green : C.muted};
+          border:1px solid ${p.status ? 'rgba(74,222,128,0.3)' : C.border};">
+          ${p.status ? '✓ Active' : '✗ Off'}
+        </span>
+      </div>
+    </div>`).join('')
+
+  const page = document.createElement('div')
+  page.id = `flux-privacy-${tabId}`
+  Object.assign(page.style, {
+    position: 'absolute', inset: '0', background: C.bg,
+    overflowY: 'auto', padding: '40px',
+    fontFamily: "'Exo 2', 'Segoe UI', sans-serif", color: C.text, zIndex: '10',
+    boxSizing: 'border-box',
+  })
+
+  page.innerHTML = `
+    <!-- Header -->
+    <div style="display:flex; align-items:flex-start; gap:16px; margin-bottom:32px; padding-bottom:20px; border-bottom:1px solid ${C.border};">
+      <div>
+        <div style="font-family:'Orbitron','Segoe UI',sans-serif; font-size:20px; font-weight:700;
+          background:linear-gradient(135deg,${C.accent2},${C.accent}); -webkit-background-clip:text;
+          -webkit-text-fill-color:transparent; background-clip:text;">🔐 FLUX Privacy · Fingerprint Guard</div>
+        <div style="font-size:12px; color:${C.muted}; letter-spacing:1px; margin-top:4px;">
+          flux://privacy · Dynamic Fingerprint Randomization
+        </div>
+      </div>
+      <div style="margin-left:auto; display:flex; align-items:center; gap:8px; padding:6px 14px;
+        background:rgba(155,61,255,0.07); border:1px solid rgba(155,61,255,0.25);
+        border-radius:20px; font-size:11px; color:${C.accent2}; white-space:nowrap;">
+        <span style="width:6px; height:6px; background:${C.accent2}; border-radius:50%;
+          box-shadow:0 0 6px ${C.accent2}; display:inline-block;"></span>
+        New identity per page · Seed rotates every tab
+      </div>
+    </div>
+
+    <!-- Hero Stats -->
+    <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin-bottom:36px;">
+      <div style="padding:24px 20px; background:rgba(12,8,20,0.8); border:1px solid ${C.border};
+        border-radius:14px; text-align:center;">
+        <span style="font-family:'Orbitron',sans-serif; font-size:36px; font-weight:700;
+          color:${C.accent2}; display:block; margin-bottom:8px;
+          text-shadow:0 0 20px rgba(155,61,255,0.5);">${s.total}</span>
+        <span style="font-size:11px; color:${C.muted}; letter-spacing:1.5px; text-transform:uppercase;">
+          Fingerprint Attempts Neutralized</span>
+      </div>
+      <div style="padding:24px 20px; background:rgba(12,8,20,0.8); border:1px solid ${C.border};
+        border-radius:14px; text-align:center;">
+        <span style="font-family:'Orbitron',sans-serif; font-size:36px; font-weight:700;
+          color:${C.accent}; display:block; margin-bottom:8px;
+          text-shadow:0 0 20px rgba(92,224,255,0.4);">${shield.blockedCount}</span>
+        <span style="font-size:11px; color:${C.muted}; letter-spacing:1.5px; text-transform:uppercase;">
+          Connections Blocked by Shield</span>
+      </div>
+      <div style="padding:24px 20px; background:rgba(12,8,20,0.8); border:1px solid ${C.border};
+        border-radius:14px; text-align:center;">
+        <span style="font-family:'Orbitron',sans-serif; font-size:36px; font-weight:700;
+          color:${C.green}; display:block; margin-bottom:8px;
+          text-shadow:0 0 20px rgba(74,222,128,0.4);">∞</span>
+        <span style="font-size:11px; color:${C.muted}; letter-spacing:1.5px; text-transform:uppercase;">
+          Unique Identities (per session)</span>
+      </div>
+    </div>
+
+    <!-- Section Label -->
+    <div style="font-family:'Orbitron',sans-serif; font-size:10px; letter-spacing:3px;
+      color:${C.accent2}; text-transform:uppercase; margin-bottom:12px;">Active Protections</div>
+
+    <!-- Rows -->
+    <div style="margin-bottom:32px;">${rows}</div>
+
+    <!-- Footer -->
+    <div style="display:flex; align-items:center; justify-content:space-between;
+      padding-top:20px; border-top:1px solid ${C.border};
+      font-size:11px; color:${C.muted}; letter-spacing:0.5px;">
+      <span>FLUX Browser — Zero Telemetry · Zero Tracking · Full Control</span>
+      <span id="fp-net-link-${tabId}" style="color:${C.accent}; cursor:pointer; font-size:12px;
+        font-weight:500; transition:color 0.15s;">→ Open Network Monitor</span>
+    </div>
+  `
+
+  tab.webview.classList.remove('active')
+  if (tab.newTabScreen) tab.newTabScreen.classList.add('hidden')
+  dom.webviewContainer.appendChild(page)
+
+  document.getElementById(`fp-net-link-${tabId}`)
+    ?.addEventListener('click', () => navigate('flux://network'))
+}
+
+// ── FLUX SHIELD UI ────────────────────────────────────────
+
+// Shield-Button aktualisieren (Farbe + Zähler)
+function updateShieldButton() {
+  const btn   = dom.btnShield
+  const count = document.getElementById('shield-count')
+  if (!btn) return
+
+  if (shield.enabled) {
+    btn.classList.remove('shield-off')
+  } else {
+    btn.classList.add('shield-off')
+  }
+
+  if (count) {
+    if (shield.blockedCount > 0) {
+      count.textContent = shield.blockedCount > 99 ? '99+' : shield.blockedCount
+      count.classList.remove('hidden')
+    } else {
+      count.classList.add('hidden')
+    }
+  }
+}
+
+// Kurzer Pulse-Effekt wenn etwas blockiert wurde
+function pulseShield() {
+  const btn = dom.btnShield
+  if (!btn) return
+  btn.classList.add('shield-pulse')
+  setTimeout(() => btn.classList.remove('shield-pulse'), 600)
+}
+
+// flux://network Seite rendern
+function renderNetworkPage(tabId) {
+  const tab = getTab(tabId)
+  if (!tab) return
+
+  // Vorhandenen Screen entfernen
+  const existing = document.getElementById(`flux-network-${tabId}`)
+  if (existing) existing.remove()
+
+  const allowed  = shield.log.filter(e => e.type === 'allowed').length
+  const trackers = shield.log.filter(e => e.type === 'blocked-tracker').length
+  const bg       = shield.log.filter(e => e.type === 'blocked-bg').length
+  const total    = shield.log.length
+
+  function timeAgo(ts) {
+    const s = Math.floor((Date.now() - ts) / 1000)
+    if (s < 5)  return 'just now'
+    if (s < 60) return `${s}s ago`
+    return `${Math.floor(s/60)}m ago`
+  }
+
+  function badgeText(type) {
+    if (type === 'allowed')         return 'Allowed'
+    if (type === 'blocked-tracker') return 'Tracker'
+    if (type === 'blocked-bg')      return 'BG Block'
+    return type
+  }
+
+  const logHTML = shield.log.length === 0
+    ? `<div class="fn-empty">🛡️ No connections recorded yet.<br>Browse a page to see activity here.</div>`
+    : shield.log.map(e => `
+        <div class="fn-log-entry ${e.type}">
+          <span class="fn-log-badge">${badgeText(e.type)}</span>
+          <span class="fn-log-url" title="${e.url}">${e.url}</span>
+          <span class="fn-log-time">${timeAgo(e.time)}</span>
+        </div>`).join('')
+
+  const page = document.createElement('div')
+  page.className = 'flux-network-page'
+  page.id = `flux-network-${tabId}`
+  page.innerHTML = `
+    <div class="fn-header">
+      <div>
+        <div class="fn-title">🛡️ FLUX Shield · Network Monitor</div>
+        <div class="fn-subtitle">flux://network · Zero-Connection Mode</div>
+      </div>
+      <div class="fn-shield-toggle">
+        <span class="fn-toggle-label">FLUX Shield</span>
+        <button class="fn-toggle ${shield.enabled ? 'on' : ''}" id="fn-toggle-${tabId}"></button>
+      </div>
+    </div>
+
+    <div class="fn-shield-status ${shield.enabled ? 'active' : 'inactive'}">
+      <span class="fn-shield-dot"></span>
+      ${shield.enabled ? 'Zero-Connection Mode ACTIVE — Background connections are blocked' : 'Shield DISABLED — All connections allowed'}
+    </div>
+
+    <div class="fn-stats">
+      <div class="fn-stat">
+        <span class="fn-stat-value green">${allowed}</span>
+        <span class="fn-stat-label">Connections Allowed</span>
+      </div>
+      <div class="fn-stat">
+        <span class="fn-stat-value red">${trackers}</span>
+        <span class="fn-stat-label">Trackers Blocked</span>
+      </div>
+      <div class="fn-stat">
+        <span class="fn-stat-value purple">${bg}</span>
+        <span class="fn-stat-label">Background Blocked</span>
+      </div>
+    </div>
+
+    <div class="fn-log-title">Connection Log (last ${total})</div>
+    <div class="fn-log">${logHTML}</div>
+  `
+
+  // Webview verstecken, Network-Seite zeigen
+  tab.webview.classList.remove('active')
+  if (tab.newTabScreen) tab.newTabScreen.classList.add('hidden')
+  dom.webviewContainer.appendChild(page)
+
+  // Shield-Toggle auf der Seite
+  const toggleBtn = page.querySelector(`#fn-toggle-${tabId}`)
+  if (toggleBtn) {
+    toggleBtn.addEventListener('click', () => {
+      const newState = !shield.enabled
+      shield.enabled = newState
+      window.shieldAPI.toggle(newState)
+      updateShieldButton()
+      // Seite neu rendern
+      renderNetworkPage(tabId)
+    })
+  }
+}
+
+// Shield-Button Klick: Umschalten oder flux://network öffnen
+dom.btnShield?.addEventListener('click', (e) => {
+  // Ctrl+Klick → Network-Seite im neuen Tab
+  if (e.ctrlKey) {
+    navigate('flux://network')
+    return
+  }
+  // Einfacher Klick → Shield togglen
+  shield.enabled = !shield.enabled
+  window.shieldAPI.toggle(shield.enabled)
+  updateShieldButton()
+  pulseShield()
+})
+
+// Shield-Button Rechtsklick → Network-Seite
+dom.btnShield?.addEventListener('contextmenu', (e) => {
+  e.preventDefault()
+  navigate('flux://network')
+})
+
+// Live-Updates vom Main Process empfangen
+window.shieldAPI.onLogUpdate((log) => {
+  shield.log = log
+
+  // Blockierungen zählen
+  const newBlocked = log.filter(e => e.type !== 'allowed').length
+  if (newBlocked > shield.blockedCount) {
+    pulseShield()
+  }
+  shield.blockedCount = newBlocked
+  updateShieldButton()
+
+  // Network-Seite live aktualisieren falls geöffnet
+  const activeTab = getActiveTab()
+  if (activeTab && activeTab.isNetworkPage) {
+    renderNetworkPage(activeTab.id)
+  }
+})
+
+// Shield-Status-Änderungen (z.B. von flux://network Toggle)
+window.shieldAPI.onStatusChanged((enabled) => {
+  shield.enabled = enabled
+  updateShieldButton()
+})
+
 // ── INITIALISIERUNG ───────────────────────────────────────
 
 // Startet mit der FLUX-Startseite (eigene New-Tab-Page)
 createTab(null)
+
+// Fingerprint-Preload-Pfad holen und Webviews damit ausstatten
+window.fingerprintAPI.getPreloadPath().then(p => {
+  fp.preloadPath = p
+})
+
+// Fingerprint-Stats laden
+window.fingerprintAPI.getStats().then(stats => {
+  fp.stats = stats
+})
+
+// Live-Updates der Fingerprint-Stats
+window.fingerprintAPI.onStatsUpdate((stats) => {
+  fp.stats = stats
+  // Privacy-Seite live aktualisieren falls geöffnet
+  const activeTab = getActiveTab()
+  if (activeTab?.isPrivacyPage) renderPrivacyPage(activeTab.id)
+})
+
+// Shield-Status vom Main Process laden und UI initialisieren
+window.shieldAPI.getStatus().then(({ enabled, log }) => {
+  shield.enabled = enabled
+  shield.log     = log
+  shield.blockedCount = log.filter(e => e.type !== 'allowed').length
+  updateShieldButton()
+})
 
 // Fenster-Zustand-Listener (Maximize-Icon aktualisieren)
 window.windowAPI.onWindowState((state) => {

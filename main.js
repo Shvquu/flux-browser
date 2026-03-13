@@ -1,29 +1,57 @@
 // ============================================================
 // main.js – Main Process
-//
-// Der Main Process ist der "Kern" der Electron-App.
-// Er hat Zugriff auf Node.js und alle nativen OS-APIs.
-// Er erstellt Fenster (BrowserWindow) und kommuniziert
-// mit dem Renderer via IPC (Inter-Process Communication).
 // ============================================================
 
 const { app, BrowserWindow, ipcMain, session } = require('electron')
 const path = require('path')
 
-// ── Squirrel-Events (Windows Installer) ───────────────────
-// Squirrel feuert beim ersten Start nach der Installation
-// spezielle Ereignisse. Wir MÜSSEN diese abfangen, sonst:
-//   - Keine Desktop-Verknüpfung
-//   - Kein Start-Menü-Eintrag
-//   - Kein Eintrag in 'Apps & Features' (keine Deinstallation)
-//
-// electron-squirrel-startup erledigt das automatisch:
-//   Install   → Shortcuts erstellen + Registry-Eintrag anlegen
-//   Uninstall → Shortcuts + Registry entfernen
-//   Update    → Shortcuts aktualisieren
-// Danach beendet sich die App sofort (app.quit), da Squirrel
-// die App nur kurz startet um diese Events zu verarbeiten.
 if (require('electron-squirrel-startup')) app.quit()
+
+// ── FLUX Shield – Zero-Connection Mode ────────────────────
+// Globaler State für den Shield-Modus.
+// Wird per IPC vom Renderer gesteuert.
+let shieldEnabled = true   // Standard: AN
+
+// Tracker-Domains die IMMER blockiert werden (auch ohne Shield)
+const ALWAYS_BLOCK = [
+  'google-analytics.com', 'googletagmanager.com', 'googletagservices.com',
+  'doubleclick.net', 'googlesyndication.com', 'adservice.google.com',
+  'facebook.com/tr', 'connect.facebook.net', 'analytics.facebook.com',
+  'scorecardresearch.com', 'quantserve.com', 'outbrain.com', 'taboola.com',
+  'hotjar.com', 'mouseflow.com', 'fullstory.com', 'mixpanel.com',
+  'amplitude.com', 'segment.io', 'segment.com', 'heap.io',
+  'clarity.ms', 'bing.com/bat', 'ads.twitter.com', 'static.ads-twitter.com',
+]
+
+// Verbindungs-Log: wird an den Renderer weitergegeben (flux://network)
+const connectionLog = []
+const MAX_LOG = 300
+
+function logConnection(type, url, reason) {
+  connectionLog.unshift({ type, url, reason, time: Date.now() })
+  if (connectionLog.length > MAX_LOG) connectionLog.pop()
+  // An alle offenen Fenster broadcasten
+  BrowserWindow.getAllWindows().forEach(w =>
+    w.webContents.send('shield-log-update', connectionLog.slice(0, 50))
+  )
+}
+
+function isTrackerDomain(url) {
+  try {
+    const host = new URL(url).hostname
+    return ALWAYS_BLOCK.some(d => host === d || host.endsWith('.' + d))
+  } catch { return false }
+}
+
+function isInternalRequest(url) {
+  // Chromium-interne Hintergrundanfragen erkennen
+  const internalPatterns = [
+    'safebrowsing', 'update.googleapis.com', 'clients.google.com',
+    'chrome-extension://', 'edge-update', 'browser.events.data.microsoft',
+    'ocsp.', 'crl.', // Certificate checks
+  ]
+  return internalPatterns.some(p => url.includes(p))
+}
 
 // ── Fenster erstellen ──────────────────────────────────────
 function createWindow() {
@@ -32,69 +60,111 @@ function createWindow() {
     height: 900,
     minWidth: 800,
     minHeight: 600,
-    frame: false,           // Eigene Titelleiste statt OS-Standard
-    backgroundColor: '#050810', // Verhindert weißes Flackern beim Start
-
-    // App-Icon für Taskleiste (Windows), Dock (macOS) und Panels (Linux).
-    // Pfad relativ zu main.js → flux.png liegt im renderer/-Unterordner.
+    frame: false,
+    backgroundColor: '#050810',
     icon: path.join(__dirname, 'renderer', 'flux.png'),
-
     webPreferences: {
-      // Preload-Script: lädt BEVOR die Seite gerendert wird.
-      // Es ist die einzige sichere Brücke zwischen Main und Renderer.
       preload: path.join(__dirname, 'preload.js'),
-
-      // contextIsolation: MUSS true sein!
-      // Trennt den JavaScript-Kontext der Webseite vom Node.js-Kontext.
-      // Verhindert, dass Webseiten auf Node.js-APIs zugreifen können.
       contextIsolation: true,
-
-      // nodeIntegration: MUSS false sein!
-      // Gibt dem Renderer-Prozess KEINEN direkten Node.js-Zugriff.
       nodeIntegration: false,
-
-      // webviewTag: Erlaubt <webview>-Elemente im Renderer.
-      // <webview> ist ein spezielles Electron-Element, das Webseiten
-      // in einem eigenen, isolierten Prozess lädt.
       webviewTag: true,
-
-      // Verhindert, dass der Renderer auf lokale Dateien zugreift
       webSecurity: true,
     },
   })
 
-  // Shell des Browsers laden (unsere eigene UI)
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'))
 
-  // ── Fenster-Steuerung via IPC ──────────────────────────
-  // Der Renderer kann keine Fenster direkt steuern (Sicherheit!).
-  // Stattdessen sendet er IPC-Nachrichten, die wir hier verarbeiten.
-
+  // Fenstersteuerung
   ipcMain.on('window-minimize', () => win.minimize())
-
   ipcMain.on('window-maximize', () => {
-    // Toggle zwischen maximiert und Normal
     win.isMaximized() ? win.unmaximize() : win.maximize()
   })
-
   ipcMain.on('window-close', () => win.close())
-
-  // Fenster-Status an Renderer melden (für Maximize-Icon)
-  win.on('maximize', () => win.webContents.send('window-state', 'maximized'))
+  win.on('maximize',   () => win.webContents.send('window-state', 'maximized'))
   win.on('unmaximize', () => win.webContents.send('window-state', 'normal'))
-
-  // ── Dev Tools (nur für Entwicklung) ───────────────────
-  // Im Produktionsbuild diese Zeile entfernen
-  // win.webContents.openDevTools()
 }
 
-// ── Content Security Policy setzen ────────────────────────
-// CSP schränkt ein, welche Ressourcen unsere Shell-UI laden darf.
-// Wichtig: Diese CSP gilt NUR für unsere eigene UI, nicht für
-// die <webview>-Inhalte (die haben ihr eigenes CSP).
+// ── Shield IPC Handler ─────────────────────────────────────
+function setupShieldIPC() {
+  // Renderer fragt Shield-Status ab
+  ipcMain.handle('shield-get-status', () => ({
+    enabled: shieldEnabled,
+    log: connectionLog.slice(0, 50),
+  }))
+
+  // Renderer schaltet Shield um
+  ipcMain.on('shield-toggle', (_, enable) => {
+    shieldEnabled = enable
+    BrowserWindow.getAllWindows().forEach(w =>
+      w.webContents.send('shield-status-changed', shieldEnabled)
+    )
+  })
+}
+
+// ── Fingerprint Randomization State ──────────────────────
+const fingerprintStats = {
+  canvas:    0,
+  webgl:     0,
+  audio:     0,
+  navigator: 0,
+  screen:    0,
+  total:     0,
+}
+
+function setupFingerprintIPC() {
+  // Renderer fragt Stats ab
+  ipcMain.handle('fp-get-stats', () => fingerprintStats)
+
+  // Renderer meldet einen erkannten Fingerprint-Versuch
+  ipcMain.on('fp-attempt', (_, type) => {
+    fingerprintStats[type] = (fingerprintStats[type] || 0) + 1
+    fingerprintStats.total++
+    // An alle Fenster broadcasten (für flux://privacy Live-Update)
+    BrowserWindow.getAllWindows().forEach(w =>
+      w.webContents.send('fp-stats-update', fingerprintStats)
+    )
+  })
+
+  // Preload-Pfad an Renderer geben damit Webviews ihn setzen können
+  ipcMain.handle('fp-get-preload-path', () =>
+    path.join(__dirname, 'renderer', 'fingerprint-guard.js')
+  )
+}
+
+// ── Netzwerkfilter (Herzstück des Shield) ─────────────────
+function setupNetworkFilter() {
+  session.defaultSession.webRequest.onBeforeRequest((details, callback) => {
+    const url   = details.url
+    const type  = details.resourceType   // 'mainFrame', 'script', 'image' etc.
+
+    // Eigene App-URLs immer erlauben
+    if (url.startsWith('file://') || url.startsWith('chrome-extension://')) {
+      return callback({ cancel: false })
+    }
+
+    // Tracker IMMER blockieren (unabhängig vom Shield)
+    if (isTrackerDomain(url)) {
+      logConnection('blocked-tracker', url, 'Known tracker domain')
+      return callback({ cancel: true })
+    }
+
+    // Im Shield-Modus: Hintergrundanfragen blockieren
+    if (shieldEnabled) {
+      if (isInternalRequest(url)) {
+        logConnection('blocked-bg', url, 'Background/internal request blocked by FLUX Shield')
+        return callback({ cancel: true })
+      }
+    }
+
+    // Erlaubt
+    logConnection('allowed', url, '')
+    callback({ cancel: false })
+  })
+}
+
+// ── CSP + App starten ─────────────────────────────────────
 app.whenReady().then(() => {
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
-    // Nur für unsere eigene Shell anwenden, nicht für externe Seiten
     if (details.url.startsWith('file://')) {
       callback({
         responseHeaders: {
@@ -109,15 +179,16 @@ app.whenReady().then(() => {
     }
   })
 
+  setupNetworkFilter()
+  setupShieldIPC()
+  setupFingerprintIPC()
   createWindow()
 
-  // macOS: App bleibt offen, auch wenn alle Fenster geschlossen sind
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
 })
 
-// Windows/Linux: App beenden, wenn letztes Fenster geschlossen wird
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
 })
