@@ -1,0 +1,17 @@
+{
+  "name": "flux-browser",
+  "version": "1.0.0",
+  "description": "Futuristischer Browser gebaut mit Electron",
+  "author": "Shvquu",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "make": "electron-forge make"
+  },
+  "devDependencies": {
+    "electron": "^29.0.0",
+    "@electron-forge/cli": "^7.0.0",
+    "@electron-forge/maker-squirrel": "^7.0.0",
+    "@electron-forge/maker-zip": "^7.0.0"
+  }
+}

@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FLUX Browser</title>
+
+  <!-- Google Fonts: Orbitron (Sci-Fi Headings) + JetBrains Mono (URL-Bar) + Exo 2 (UI-Text) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=JetBrains+Mono:wght@400;500&family=Exo+2:wght@300;400;500;600&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- ────────────────────────────────────────────────────
+    CHROME-LEISTE (Tab Bar + Fenstersteuerung)
+    "Chrome" = der nicht-Webseitenbereich des Browsers
+    Wird als Drag-Region verwendet (app-region: drag)
+  ──────────────────────────────────────────────────────── -->
+  <header id="chrome">
+
+    <!-- Browser-Logo / Name -->
+    <div id="brand">
+      <!-- Echtes FLUX-Logo als img-Element -->
+      <img src="flux.png" class="brand-icon" alt="FLUX" draggable="false">
+      <span>FLUX</span>
+    </div>
+
+    <!-- Tab-Leiste: Tabs werden per JavaScript hinzugefügt -->
+    <div id="tab-bar">
+      <div id="tabs-container">
+        <!-- Tabs werden hier dynamisch eingefügt -->
+      </div>
+
+      <!-- Neuer Tab Button -->
+      <button id="btn-new-tab" class="icon-btn" title="Neuer Tab (Ctrl+T)">
+        <svg viewBox="0 0 16 16"><path d="M8 2v12M2 8h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+
+    <!-- Fenster-Buttons (Minimize, Maximize, Close) -->
+    <div id="window-controls">
+      <button class="win-btn" id="btn-minimize" title="Minimieren">
+        <svg viewBox="0 0 12 12"><line x1="2" y1="6" x2="10" y2="6" stroke="currentColor" stroke-width="1.5"/></svg>
+      </button>
+      <button class="win-btn" id="btn-maximize" title="Maximieren">
+        <svg viewBox="0 0 12 12"><rect x="2" y="2" width="8" height="8" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+      </button>
+      <button class="win-btn danger" id="btn-close" title="Schließen">
+        <svg viewBox="0 0 12 12"><path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- ────────────────────────────────────────────────────
+    NAVIGATIONS-LEISTE
+    Adressleiste, Vor/Zurück, Reload, Sicherheitsindikator
+  ──────────────────────────────────────────────────────── -->
+  <nav id="navbar">
+
+    <!-- Navigation: Zurück, Vorwärts, Reload -->
+    <div class="nav-group">
+      <button class="icon-btn nav-btn" id="btn-back" title="Zurück" disabled>
+        <svg viewBox="0 0 16 16"><path d="M10 3L5 8l5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
+      </button>
+      <button class="icon-btn nav-btn" id="btn-forward" title="Vorwärts" disabled>
+        <svg viewBox="0 0 16 16"><path d="M6 3l5 5-5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
+      </button>
+      <button class="icon-btn nav-btn" id="btn-reload" title="Neu laden">
+        <svg viewBox="0 0 16 16"><path d="M13.5 8A5.5 5.5 0 1 1 10 3.07" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/><path d="M10 1v3h3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
+      </button>
+    </div>
+
+    <!-- Adressleiste: URL-Eingabe mit Sicherheitsindikator -->
+    <div id="address-bar">
+      <!-- Sicherheitsikon (grün = HTTPS, gelb = HTTP) -->
+      <span id="security-icon" class="secure">
+        <svg viewBox="0 0 16 16" fill="none">
+          <path d="M8 1.5L2.5 4v4c0 3 2.5 5.5 5.5 6 3-0.5 5.5-3 5.5-6V4L8 1.5z" stroke="currentColor" stroke-width="1.2"/>
+          <path id="security-check" d="M5 8l2 2 4-4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+        </svg>
+      </span>
+
+      <!-- URL-Eingabefeld: Monospace-Font für technisches Feeling -->
+      <input
+        type="text"
+        id="url-input"
+        placeholder="URL eingeben oder suchen..."
+        spellcheck="false"
+        autocomplete="off"
+      />
+
+      <!-- Ladeindikator (nur sichtbar während Laden) -->
+      <span id="loading-indicator" class="hidden">
+        <svg viewBox="0 0 16 16" class="spinning"><circle cx="8" cy="8" r="5.5" stroke="currentColor" stroke-width="1.5" fill="none" stroke-dasharray="20 15"/></svg>
+      </span>
+    </div>
+
+    <!-- Sekundäre Buttons (Lesezeichen, etc.) -->
+    <div class="nav-group">
+      <button class="icon-btn nav-btn" id="btn-home" title="Startseite">
+        <svg viewBox="0 0 16 16" fill="none"><path d="M2 8L8 2l6 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 6.5V14h3v-3h2v3h3V6.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <button class="icon-btn nav-btn" id="btn-bookmark" title="Lesezeichen">
+        <svg viewBox="0 0 16 16" fill="none"><path d="M4 2h8v12l-4-3-4 3V2z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Ladebalken: Erscheint oben beim Laden einer Seite -->
+  <div id="progress-bar">
+    <div id="progress-fill"></div>
+  </div>
+
+  <!-- ────────────────────────────────────────────────────
+    WEBVIEW-CONTAINER
+    Hier werden die <webview>-Elemente angezeigt.
+    Nur der aktive Tab ist sichtbar (display: block/none).
+  ──────────────────────────────────────────────────────── -->
+  <main id="webview-container">
+    <!-- Webviews werden per JavaScript eingefügt -->
+  </main>
+
+  <!-- Status-Leiste: Zeigt Hover-URLs und Status-Infos -->
+  <div id="status-bar">
+    <span id="status-text"></span>
+    <span id="status-right">FLUX v1.0</span>
+  </div>
+
+  <script src="renderer.js"></script>
+</body>
+</html>

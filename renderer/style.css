@@ -1,0 +1,699 @@
+/* ============================================================
+   style.css – FLUX Browser – Futuristisches Cyberpunk-Design
+   
+   Design-Konzept: "Holographisches Interface"
+   - Tiefes Schwarz-Blau als Basis (wie Weltraum)
+   - Neon-Cyan als Hauptakzent (Hologramm-Feeling)
+   - Glassmorphism für UI-Ebenen (Tiefe & Transparenz)
+   - Orbitron-Font für Sci-Fi-Ästhetik
+   - Subtile Scan-Linien und Glow-Effekte
+   ============================================================ */
+
+/* ── Google Fonts werden in HTML geladen ─────────────────── */
+
+/* ── CSS Custom Properties (Design-System) ───────────────── */
+:root {
+  /* Farben – abgestimmt auf das FLUX-Logo (Lila, Cyan, Orange) */
+  --bg-base:       #060508;           /* Tiefstes Schwarz wie Logo-Hintergrund */
+  --bg-surface:    rgba(10, 7, 14, 0.97);
+  --bg-glass:      rgba(140, 60, 255, 0.05);  /* Lila-Glasmorphism */
+  --bg-hover:      rgba(140, 60, 255, 0.09);
+
+  /* Haupt-Akzent: Cyan (wie der leuchtende Punkt im Logo) */
+  --accent:        #5ce0ff;
+  --accent-dim:    rgba(92, 224, 255, 0.45);
+  --accent-glow:   rgba(92, 224, 255, 0.15);
+
+  /* Sekundär-Akzent: Logo-Lila */
+  --accent-2:      #9b3dff;
+  --accent-2-glow: rgba(155, 61, 255, 0.2);
+
+  /* Tertiär-Akzent: Logo-Orange (für Ladebalken, Highlights) */
+  --accent-3:      #ff6a00;
+
+  /* Gradient: Lila → Cyan (wie der Schwung im Logo) */
+  --gradient:      linear-gradient(90deg, var(--accent-2), var(--accent));
+  /* Gradient mit Orange: für Ladebalken */
+  --gradient-warm: linear-gradient(90deg, var(--accent-2), var(--accent-3), var(--accent));
+
+  --text-primary:  #e8d8ff;           /* Leicht lila-getöntes Weiß */
+  --text-secondary:rgba(210, 180, 255, 0.55);
+  --text-dim:      rgba(180, 150, 230, 0.3);
+
+  --border:        rgba(140, 60, 255, 0.14);
+  --border-bright: rgba(92, 224, 255, 0.35);
+  --danger:        #ff4060;
+
+  /* Layout */
+  --chrome-h:  42px;
+  --nav-h:     48px;
+  --status-h:  22px;
+  --radius:    6px;
+
+  /* Transitions */
+  --t-fast:  0.12s ease;
+  --t-mid:   0.22s ease;
+}
+
+/* ── Reset & Basis ───────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  height: 100%;
+  overflow: hidden;      /* Kein Scrollbalken im App-Chrome */
+  user-select: none;     /* Textselektion im UI-Chrome deaktivieren */
+}
+
+body {
+  font-family: 'Exo 2', sans-serif;
+  font-size: 13px;
+  color: var(--text-primary);
+  background: var(--bg-base);
+  display: flex;
+  flex-direction: column;
+
+  /* Subtile Scanlinien – lila Tönung passend zum Logo */
+  background-image:
+    repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(120, 60, 200, 0.018) 2px,
+      rgba(120, 60, 200, 0.018) 4px
+    );
+}
+
+/* ── TAB BAR (Chrome) ────────────────────────────────────── */
+#chrome {
+  height: var(--chrome-h);
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  gap: 8px;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border);
+
+  /* Drag-Region: Ermöglicht das Verschieben des Fensters */
+  -webkit-app-region: drag;
+}
+
+/* ── Brand / Logo ─────────────────────────────────────────── */
+#brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  -webkit-app-region: no-drag;
+  padding: 0 4px;
+}
+
+/* Das echte FLUX-Logo-Bild */
+#brand .brand-icon {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+  /* Leichter Glow-Effekt passend zur Lila-Cyan-Palette des Logos */
+  filter: drop-shadow(0 0 6px rgba(155, 61, 255, 0.6)) drop-shadow(0 0 12px rgba(92, 224, 255, 0.3));
+}
+
+#brand span {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 3px;
+  /* Gradient-Text: Lila → Cyan (wie der Logo-Schwung) */
+  background: var(--gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  filter: drop-shadow(0 0 8px var(--accent-2-glow));
+}
+
+/* ── Tab Container ───────────────────────────────────────── */
+#tab-bar {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;         /* Verhindert overflow bei vielen Tabs */
+  -webkit-app-region: no-drag;
+  overflow: hidden;
+}
+
+#tabs-container {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  overflow: hidden;
+  flex: 1;
+  height: 100%;
+  align-items: center;
+}
+
+/* ── Einzelner Tab ───────────────────────────────────────── */
+.tab {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 10px;
+  height: 30px;
+  min-width: 80px;
+  max-width: 200px;
+  border-radius: var(--radius);
+  background: transparent;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background var(--t-fast), border-color var(--t-fast);
+  flex-shrink: 1;
+  overflow: hidden;
+  position: relative;
+}
+
+.tab:hover {
+  background: var(--bg-hover);
+  border-color: var(--border);
+}
+
+/* Aktiver Tab: Lila-Cyan-Glow passend zum FLUX-Logo */
+.tab.active {
+  background: rgba(140, 60, 255, 0.07);
+  border-color: rgba(92, 224, 255, 0.3);
+  box-shadow: 0 0 12px rgba(155, 61, 255, 0.15), inset 0 0 10px rgba(140, 60, 255, 0.05);
+}
+
+/* Gradient-Linie am unteren Rand des aktiven Tabs */
+.tab.active::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 15%;
+  right: 15%;
+  height: 2px;
+  background: var(--gradient);
+  box-shadow: 0 0 8px var(--accent-2), 0 0 16px rgba(92, 224, 255, 0.4);
+  border-radius: 2px;
+}
+
+/* Tab-Favicon-Bereich */
+.tab-favicon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  opacity: 0.8;
+}
+
+.tab-favicon img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* Tab-Ladeindikator (kleines Spinner-Icon) */
+.tab-loading {
+  width: 12px;
+  height: 12px;
+  border: 1.5px solid var(--accent-dim);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+.tab-title {
+  flex: 1;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 12px;
+  color: var(--text-secondary);
+  transition: color var(--t-fast);
+}
+
+.tab.active .tab-title { color: var(--text-primary); }
+
+/* Tab-Schließen-Button */
+.tab-close {
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  opacity: 0;          /* Erst bei Hover sichtbar */
+  transition: opacity var(--t-fast), background var(--t-fast), color var(--t-fast);
+  padding: 0;
+}
+
+.tab:hover .tab-close,
+.tab.active .tab-close { opacity: 1; }
+
+.tab-close:hover {
+  background: rgba(255, 64, 96, 0.15);
+  color: var(--danger);
+}
+
+.tab-close svg { width: 10px; height: 10px; }
+
+/* ── Fenster-Buttons ─────────────────────────────────────── */
+#window-controls {
+  display: flex;
+  gap: 4px;
+  -webkit-app-region: no-drag;
+  flex-shrink: 0;
+}
+
+.win-btn {
+  width: 28px;
+  height: 22px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-glass);
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--t-fast);
+}
+
+.win-btn:hover { background: var(--bg-hover); color: var(--text-primary); border-color: var(--border-bright); }
+.win-btn.danger:hover { background: rgba(255,64,96,0.2); border-color: var(--danger); color: var(--danger); }
+.win-btn svg { width: 10px; height: 10px; }
+
+/* ── NAVBAR ──────────────────────────────────────────────── */
+#navbar {
+  height: var(--nav-h);
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  gap: 6px;
+  background: rgba(5, 10, 20, 0.95);
+  border-bottom: 1px solid var(--border);
+}
+
+.nav-group {
+  display: flex;
+  gap: 2px;
+}
+
+/* ── Icon-Buttons (Universal) ────────────────────────────── */
+.icon-btn {
+  width: 30px;
+  height: 30px;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--t-fast);
+  flex-shrink: 0;
+}
+
+.icon-btn svg { width: 14px; height: 14px; }
+
+.icon-btn:hover:not(:disabled) {
+  background: var(--bg-hover);
+  border-color: var(--border);
+  color: var(--accent);
+}
+
+/* Deaktivierter Zustand (z.B. kein Zurück möglich) */
+.icon-btn:disabled {
+  opacity: 0.25;
+  cursor: not-allowed;
+}
+
+/* ── Adressleiste ────────────────────────────────────────── */
+#address-bar {
+  flex: 1;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  background: rgba(0, 10, 25, 0.8);
+  border: 1px solid var(--border);
+  border-radius: 20px;      /* Pill-Form für modernen Look */
+  transition: border-color var(--t-mid), box-shadow var(--t-mid);
+}
+
+/* Focus-State: Lila-Cyan-Glow wenn Adressleiste aktiv */
+#address-bar:focus-within {
+  border-color: rgba(155, 61, 255, 0.5);
+  box-shadow: 0 0 0 3px rgba(155, 61, 255, 0.1), 0 0 20px rgba(155, 61, 255, 0.15), 0 0 40px rgba(92, 224, 255, 0.08);
+}
+
+/* Sicherheitsindikator */
+#security-icon { display: flex; flex-shrink: 0; }
+#security-icon svg { width: 14px; height: 14px; }
+#security-icon.secure  { color: #00e676; }    /* Grün = HTTPS */
+#security-icon.insecure { color: #ffab40; }   /* Orange = HTTP */
+
+/* URL-Eingabefeld */
+#url-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text-primary);
+  font-family: 'JetBrains Mono', monospace;  /* Monospace für URLs */
+  font-size: 12.5px;
+  min-width: 0;
+}
+
+#url-input::placeholder { color: var(--text-dim); }
+
+/* Text in der Adressleiste ist selektierbar */
+#url-input { user-select: text; }
+
+/* ── Ladebalken ──────────────────────────────────────────── */
+#progress-bar {
+  height: 2px;
+  background: transparent;
+  position: relative;
+  overflow: hidden;
+}
+
+#progress-fill {
+  height: 100%;
+  width: 0%;
+  /* FLUX-Logo-Farben: Lila → Orange → Cyan */
+  background: var(--gradient-warm);
+  box-shadow: 0 0 10px var(--accent-2), 0 0 20px rgba(255, 106, 0, 0.3);
+  transition: width 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+#progress-fill::after {
+  content: '';
+  position: absolute;
+  top: 0; left: -100%; right: 0; bottom: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+  animation: shimmer 1s linear infinite;
+}
+
+#progress-bar.hidden { display: none; }
+
+/* ── Webview-Container ───────────────────────────────────── */
+#webview-container {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  background: #ffffff;  /* Fallback-Weiß wie echter Browser */
+}
+
+/* Webview füllt den kompletten Container */
+webview {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%;
+  height: 100%;
+  display: none;        /* Standardmäßig versteckt */
+}
+
+webview.active { display: flex; }  /* Nur aktiver Tab sichtbar */
+
+/* ── Status Bar ──────────────────────────────────────────── */
+#status-bar {
+  height: var(--status-h);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 10px;
+  background: var(--bg-surface);
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--text-dim);
+  font-family: 'JetBrains Mono', monospace;
+}
+
+#status-right {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 9px;
+  letter-spacing: 2px;
+  background: var(--gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  filter: drop-shadow(0 0 6px var(--accent-2-glow));
+}
+
+/* ── Neuer-Tab-Bildschirm ────────────────────────────────── */
+.new-tab-screen {
+  position: absolute;
+  inset: 0;
+  background: var(--bg-base);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 32px;
+  /* Atmosphärischer Hintergrund-Glow */
+  background-image:
+    radial-gradient(ellipse 700px 400px at 50% 40%, rgba(100, 30, 200, 0.12) 0%, transparent 65%),
+    radial-gradient(ellipse 400px 200px at 50% 38%, rgba(92, 224, 255, 0.06) 0%, transparent 55%),
+    repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(120, 60, 200, 0.018) 2px, rgba(120, 60, 200, 0.018) 4px);
+  overflow: hidden; /* Kein Scroll auf der Startseite */
+  user-select: none;
+}
+
+/* ── Uhrzeit-Anzeige (oben rechts) ──────────────────────── */
+.nt-clock {
+  position: absolute;
+  top: 20px;
+  right: 24px;
+  text-align: right;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.nt-time {
+  display: block;
+  font-family: 'Orbitron', sans-serif;
+  font-size: 22px;
+  font-weight: 700;
+  background: var(--gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  filter: drop-shadow(0 0 10px rgba(155, 61, 255, 0.4));
+}
+
+.nt-date {
+  display: block;
+  font-family: 'Exo 2', sans-serif;
+  font-size: 11px;
+  color: var(--text-dim);
+  letter-spacing: 1px;
+}
+
+/* ── Brand-Bereich (Logo + Text) ─────────────────────────── */
+.nt-brand {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  animation: nt-fade-in 0.5s ease forwards;
+}
+
+/* Das echte FLUX-Logo-Bild auf der Startseite */
+.nt-logo-img {
+  width: 80px;
+  height: 80px;
+  object-fit: contain;
+  filter:
+    drop-shadow(0 0 16px rgba(155, 61, 255, 0.7))
+    drop-shadow(0 0 40px rgba(92, 224, 255, 0.3));
+  animation: nt-logo-float 4s ease-in-out infinite, pulse-glow 3s ease-in-out infinite;
+}
+
+/* Schwebeanimation für das Logo */
+@keyframes nt-logo-float {
+  0%, 100% { transform: translateY(0px);   }
+  50%       { transform: translateY(-6px);  }
+}
+
+.nt-brand-text {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.nt-logo-text {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 46px;
+  font-weight: 700;
+  letter-spacing: 10px;
+  background: linear-gradient(135deg, var(--accent-2) 0%, var(--accent) 60%, #ffffff 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  filter: drop-shadow(0 0 20px rgba(155, 61, 255, 0.5));
+  line-height: 1;
+}
+
+.nt-tagline {
+  font-family: 'Exo 2', sans-serif;
+  font-size: 12px;
+  color: var(--text-secondary);
+  letter-spacing: 3px;
+  text-transform: uppercase;
+}
+
+/* ── Suchleiste ───────────────────────────────────────────── */
+.nt-search-wrap {
+  width: 100%;
+  max-width: 580px;
+  animation: nt-fade-in 0.5s 0.1s ease both;
+}
+
+.nt-search-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 16px;
+  height: 48px;
+  background: rgba(20, 8, 35, 0.85);
+  border: 1px solid var(--border-bright);
+  border-radius: 24px;
+  transition: border-color var(--t-mid), box-shadow var(--t-mid);
+  /* Glassmorphism */
+  backdrop-filter: blur(10px);
+}
+
+.nt-search-bar:focus-within {
+  border-color: rgba(155, 61, 255, 0.6);
+  box-shadow:
+    0 0 0 3px rgba(155, 61, 255, 0.12),
+    0 0 25px rgba(155, 61, 255, 0.2),
+    0 0 50px rgba(92, 224, 255, 0.08);
+}
+
+.nt-search-icon {
+  width: 18px;
+  height: 18px;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+  transition: color var(--t-fast);
+}
+
+.nt-search-bar:focus-within .nt-search-icon { color: var(--accent); }
+
+/* Suchfeld: Eingabetext */
+.nt-search-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text-primary);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 14px;
+  user-select: text;
+}
+
+.nt-search-input::placeholder { color: var(--text-dim); }
+
+.nt-search-hint {
+  font-family: 'Exo 2', sans-serif;
+  font-size: 10px;
+  color: var(--text-dim);
+  background: rgba(255,255,255,0.05);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 6px;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+}
+
+/* ── Quick-Links ─────────────────────────────────────────── */
+.nt-quicklinks {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: 580px;
+  animation: nt-fade-in 0.5s 0.2s ease both;
+}
+
+.nt-quicklink {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  padding: 14px 16px 12px;
+  min-width: 80px;
+  background: rgba(15, 5, 25, 0.7);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: all var(--t-mid);
+  backdrop-filter: blur(8px);
+}
+
+.nt-quicklink:hover {
+  background: rgba(140, 60, 255, 0.1);
+  border-color: rgba(155, 61, 255, 0.4);
+  color: var(--text-primary);
+  transform: translateY(-3px);
+  box-shadow: 0 8px 24px rgba(155, 61, 255, 0.15), 0 0 0 1px rgba(92,224,255,0.1);
+}
+
+.nt-ql-icon {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  /* Gradient auf dem Icon */
+  background: var(--gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  line-height: 1;
+}
+
+.nt-ql-label {
+  font-family: 'Exo 2', sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+}
+
+/* Einblend-Animation für Sektionen der Startseite */
+@keyframes nt-fade-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0);    }
+}
+
+/* ── Animationen ─────────────────────────────────────────── */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes shimmer {
+  to { left: 100%; }
+}
+
+/* Logo-Glow pulsiert in Lila-Cyan */
+@keyframes pulse-glow {
+  0%, 100% { filter: drop-shadow(0 0 20px rgba(155, 61, 255, 0.5)) drop-shadow(0 0 40px rgba(92, 224, 255, 0.2)); }
+  50%       { filter: drop-shadow(0 0 35px rgba(155, 61, 255, 0.8)) drop-shadow(0 0 70px rgba(92, 224, 255, 0.4)); }
+}
+
+/* Tab erscheint mit Animation (Slide + Fade) */
+@keyframes tab-appear {
+  from { opacity: 0; transform: translateY(-4px) scale(0.95); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.tab { animation: tab-appear 0.15s ease forwards; }
+
+.spinning { animation: spin 0.8s linear infinite; }
+.hidden { display: none !important; }
