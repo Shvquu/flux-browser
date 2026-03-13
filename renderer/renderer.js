@@ -243,12 +243,80 @@ function createTab(url = null) {
 
   // Tab-Klick → Tab aktivieren
   tabEl.addEventListener('click', (e) => {
-    // Klick auf X schließt den Tab
     if (e.target.closest('.tab-close')) {
       closeTab(id)
     } else {
       activateTab(id)
     }
+  })
+
+  // ── Drag & Drop: Tab verschieben ──────────────────────────
+  // HTML5 Drag & Drop API: draggable=true + dragstart/dragover/drop.
+  // Wir speichern die ID des gezogenen Tabs in dataTransfer und
+  // ermitteln beim drop die Zielposition anhand der Maus-X-Position.
+  tabEl.setAttribute('draggable', 'true')
+
+  // dragstart: Merkt welcher Tab gerade gezogen wird
+  tabEl.addEventListener('dragstart', (e) => {
+    e.dataTransfer.setData('text/plain', String(id))
+    e.dataTransfer.effectAllowed = 'move'
+    // Kurze Verzögerung: Ghost-Bild erscheint erst, dann dragging-Klasse setzen
+    setTimeout(() => tabEl.classList.add('dragging'), 0)
+  })
+
+  // dragend: Aufräumen egal ob drop erfolgreich war oder nicht
+  tabEl.addEventListener('dragend', () => {
+    tabEl.classList.remove('dragging')
+    document.querySelectorAll('.tab').forEach(t =>
+      t.classList.remove('drag-over-left', 'drag-over-right')
+    )
+  })
+
+  // dragover: Wird aufgerufen wenn ein Tab über diesen gezogen wird
+  // Wir entscheiden: links oder rechts vom Ziel einfügen?
+  tabEl.addEventListener('dragover', (e) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+    const draggingId = parseInt(e.dataTransfer.getData('text/plain'))
+    if (draggingId === id) return
+
+    const rect = tabEl.getBoundingClientRect()
+    const isLeft = e.clientX < rect.left + rect.width / 2
+    document.querySelectorAll('.tab').forEach(t =>
+      t.classList.remove('drag-over-left', 'drag-over-right')
+    )
+    tabEl.classList.add(isLeft ? 'drag-over-left' : 'drag-over-right')
+  })
+
+  // dragleave: Indikator entfernen wenn Maus den Tab verlässt
+  tabEl.addEventListener('dragleave', () => {
+    tabEl.classList.remove('drag-over-left', 'drag-over-right')
+  })
+
+  // drop: Tab an neuer Position einfügen
+  tabEl.addEventListener('drop', (e) => {
+    e.preventDefault()
+    tabEl.classList.remove('drag-over-left', 'drag-over-right')
+
+    const draggingId = parseInt(e.dataTransfer.getData('text/plain'))
+    if (draggingId === id) return
+
+    const rect = tabEl.getBoundingClientRect()
+    const insertBefore = e.clientX < rect.left + rect.width / 2
+
+    const fromIndex = state.tabs.findIndex(t => t.id === draggingId)
+    const toIndex   = state.tabs.findIndex(t => t.id === id)
+    if (fromIndex === -1 || toIndex === -1) return
+
+    // Tab aus Array entfernen und an neuer Stelle einfügen
+    const [movedTab] = state.tabs.splice(fromIndex, 1)
+    const newIndex = insertBefore
+      ? toIndex > fromIndex ? toIndex - 1 : toIndex
+      : toIndex < fromIndex ? toIndex + 1 : toIndex
+    state.tabs.splice(newIndex, 0, movedTab)
+
+    // DOM-Reihenfolge der Tab-Elemente synchronisieren
+    state.tabs.forEach(t => dom.tabsContainer.appendChild(t.tabEl))
   })
 
   dom.tabsContainer.appendChild(tabEl)
@@ -546,7 +614,7 @@ document.addEventListener('keydown', (e) => {
 // ── INITIALISIERUNG ───────────────────────────────────────
 
 // Startet mit der FLUX-Startseite (eigene New-Tab-Page)
-createTab('https://shvquu.de/flux')
+createTab(null)
 
 // Fenster-Zustand-Listener (Maximize-Icon aktualisieren)
 window.windowAPI.onWindowState((state) => {

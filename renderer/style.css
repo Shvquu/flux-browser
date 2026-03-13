@@ -136,7 +136,10 @@ body {
   align-items: center;
   gap: 3px;
   min-width: 0;         /* Verhindert overflow bei vielen Tabs */
-  -webkit-app-region: no-drag;
+
+  /* KEIN no-drag hier! Der leere Bereich in der Tab-Leiste
+     soll ziehbar bleiben. Nur die einzelnen Elemente darin
+     (Tabs, Buttons) bekommen no-drag. */
   overflow: hidden;
 }
 
@@ -167,6 +170,9 @@ body {
   flex-shrink: 1;
   overflow: hidden;
   position: relative;
+
+  /* Tabs selbst sind NICHT ziehbar – Klicks müssen durchkommen */
+  -webkit-app-region: no-drag;
 }
 
 .tab:hover {
@@ -315,6 +321,9 @@ body {
   justify-content: center;
   transition: all var(--t-fast);
   flex-shrink: 0;
+
+  /* Buttons sind nie ziehbar */
+  -webkit-app-region: no-drag;
 }
 
 .icon-btn svg { width: 14px; height: 14px; }
@@ -341,8 +350,11 @@ body {
   padding: 0 10px;
   background: rgba(0, 10, 25, 0.8);
   border: 1px solid var(--border);
-  border-radius: 20px;      /* Pill-Form für modernen Look */
+  border-radius: 20px;
   transition: border-color var(--t-mid), box-shadow var(--t-mid);
+
+  /* Adressleiste ist interaktiv – nie ziehbar */
+  -webkit-app-region: no-drag;
 }
 
 /* Focus-State: Lila-Cyan-Glow wenn Adressleiste aktiv */
@@ -694,6 +706,27 @@ webview.active { display: flex; }  /* Nur aktiver Tab sichtbar */
 }
 
 .tab { animation: tab-appear 0.15s ease forwards; }
+
+/* ── Tab Drag & Drop ─────────────────────────────────────── */
+
+/* Der Tab der gerade gezogen wird: ausgegraut + leicht verkleinert */
+.tab.dragging {
+  opacity: 0.4;
+  transform: scale(0.95);
+  cursor: grabbing;
+}
+
+/* Drop-Indikator LINKS: leuchtende Linie vor dem Tab */
+.tab.drag-over-left {
+  border-left: 2px solid var(--accent) !important;
+  box-shadow: -3px 0 10px var(--accent-glow);
+}
+
+/* Drop-Indikator RECHTS: leuchtende Linie nach dem Tab */
+.tab.drag-over-right {
+  border-right: 2px solid var(--accent) !important;
+  box-shadow: 3px 0 10px var(--accent-glow);
+}
 
 .spinning { animation: spin 0.8s linear infinite; }
 .hidden { display: none !important; }
