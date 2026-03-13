@@ -10,6 +10,21 @@
 const { app, BrowserWindow, ipcMain, session } = require('electron')
 const path = require('path')
 
+// ── Squirrel-Events (Windows Installer) ───────────────────
+// Squirrel feuert beim ersten Start nach der Installation
+// spezielle Ereignisse. Wir MÜSSEN diese abfangen, sonst:
+//   - Keine Desktop-Verknüpfung
+//   - Kein Start-Menü-Eintrag
+//   - Kein Eintrag in 'Apps & Features' (keine Deinstallation)
+//
+// electron-squirrel-startup erledigt das automatisch:
+//   Install   → Shortcuts erstellen + Registry-Eintrag anlegen
+//   Uninstall → Shortcuts + Registry entfernen
+//   Update    → Shortcuts aktualisieren
+// Danach beendet sich die App sofort (app.quit), da Squirrel
+// die App nur kurz startet um diese Events zu verarbeiten.
+if (require('electron-squirrel-startup')) app.quit()
+
 // ── Fenster erstellen ──────────────────────────────────────
 function createWindow() {
   const win = new BrowserWindow({
@@ -20,7 +35,6 @@ function createWindow() {
     frame: false,           // Eigene Titelleiste statt OS-Standard
     backgroundColor: '#050810', // Verhindert weißes Flackern beim Start
 
-     
     // App-Icon für Taskleiste (Windows), Dock (macOS) und Panels (Linux).
     // Pfad relativ zu main.js → flux.png liegt im renderer/-Unterordner.
     icon: path.join(__dirname, 'renderer', 'flux.png'),
