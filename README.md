@@ -4,283 +4,259 @@
 
 <img src="renderer/flux.png" alt="FLUX Browser Logo" width="120"/>
 
-### Ein futuristischer, plattformübergreifender Browser
-**gebaut mit Electron · Windows · macOS · Linux**
+### Zero Telemetry. Zero Tracking. Full Control.
+**Built with Electron · Windows · macOS · Linux**
 
-![Version](https://img.shields.io/badge/version-1.0.0-9b3dff?style=flat-square)
+![Version](https://img.shields.io/github/v/release/Shvquu/flux-browser?style=flat-square&color=9b3dff&label=version)
 ![Electron](https://img.shields.io/badge/electron-29.x-5ce0ff?style=flat-square)
 ![License](https://img.shields.io/badge/license-MIT-ff6a00?style=flat-square)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-444?style=flat-square)
+![Downloads](https://img.shields.io/github/downloads/Shvquu/flux-browser/total?style=flat-square&color=9b3dff&label=Downloads)
 
 </div>
 
 ---
 
-## Downloads
+## Table of Contents
 
-[![GitHub Releases](https://img.shields.io/github/downloads/Shvquu/flux-browser/total?style=flat-square&color=9b3dff&label=Downloads)](https://github.com/Shvquu/flux-browser/releases)
-
-| Plattform | Datei | Download |
-|-----------|-------|---------|
-| 🪟 Windows | `.exe` Installer | [Neueste Version](https://github.com/Shvquu/flux-browser/releases/latest) |
-| 🍎 macOS | `.dmg` | [Neueste Version](https://github.com/Shvquu/flux-browser/releases/latest) |
-| 🐧 Linux | `.deb` / `.rpm` | [Neueste Version](https://github.com/Shvquu/flux-browser/releases/latest) |
-
-[→ Alle Releases und frühere Versionen ansehen](https://github.com/Shvquu/flux-browser/releases)
-
-## Inhaltsverzeichnis
-
-- [Über FLUX](#über-flux)
+- [About FLUX](#about-flux)
 - [Features](#features)
-- [Screenshots](#screenshots)
-- [Voraussetzungen](#voraussetzungen)
+- [Downloads](#downloads)
+- [Prerequisites](#prerequisites)
 - [Installation](#installation)
-- [Nutzung](#nutzung)
-- [Tastenkürzel](#tastenkürzel)
-- [Projektstruktur](#projektstruktur)
-- [Architektur](#architektur)
+- [Usage](#usage)
+- [Keyboard Shortcuts](#keyboard-shortcuts)
+- [Project Structure](#project-structure)
+- [Architecture](#architecture)
 - [Build & Distribution](#build--distribution)
-- [Anpassen](#anpassen)
-- [Sicherheit](#sicherheit)
-- [Lizenz](#lizenz)
+- [Customization](#customization)
+- [Security](#security)
+- [License](#license)
 
 ---
 
-## Über FLUX
+## About FLUX
 
-FLUX ist ein selbst gebauter Desktop-Browser auf Basis von [Electron](https://www.electronjs.org/). Er kombiniert die Rendering-Engine von Chromium mit einer eigenen, futuristischen Benutzeroberfläche im Cyberpunk-Stil – lila, cyan und orange, abgestimmt auf das FLUX-Logo.
+FLUX is a custom desktop browser built on top of [Electron](https://www.electronjs.org/). It combines the Chromium rendering engine with a futuristic cyberpunk-style interface — purple, cyan, and orange, matching the FLUX logo.
 
-Das Projekt richtet sich an Entwickler, die verstehen wollen, wie Browser intern aufgebaut sind, oder die einen eigenen Browser als Grundlage für spezialisierte Anwendungen nutzen möchten (Kiosk-Systeme, White-Label-Browser, interne Tools).
+> **Zero Telemetry. Zero Tracking. Full Control.**  
+> FLUX collects no usage data, sends no crash reports, and includes no analytics SDKs. What you do in your browser stays on your machine.
+
+The project is aimed at developers who want to understand how browsers work internally, or who want to use a custom browser as the foundation for specialized applications (kiosk systems, white-label browsers, internal tools).
 
 ---
 
 ## Features
 
-- **Vollständiges Tab-Management** – Tabs öffnen, schließen und wechseln
-- **Eigene Startseite** – Logo, lebende Uhrzeit, Suchleiste und Quick-Links
-- **Futuristisches UI** – Cyberpunk-Design mit Neon-Glow-Effekten, Glassmorphism und animierten Elementen
-- **Eigene Titelleiste** – Rahmenlos mit eigenen Minimize/Maximize/Close-Buttons
-- **Sicherheitsarchitektur** – `contextIsolation`, kein `nodeIntegration`, Preload-Bridge, CSP
-- **Ladebalken** – Realistischer Fortschrittsbalken mit Shimmer-Effekt
-- **Statusleiste** – Zeigt Hover-URLs und Browser-Version
-- **Plattformübergreifend** – läuft auf Windows, macOS und Linux ohne Codeänderungen
-- **Keyboard Shortcuts** – vollständige Tastatursteuerung
+- **Full Tab Management** – Open, close, switch and drag & drop reorder tabs
+- **Custom Start Page** – Logo, live clock, search bar and quick-links
+- **Futuristic UI** – Cyberpunk design with neon glow, glassmorphism and animated elements
+- **Custom Title Bar** – Frameless window with custom minimize/maximize/close buttons
+- **Security Architecture** – `contextIsolation`, no `nodeIntegration`, preload bridge, CSP
+- **Progress Bar** – Realistic loading bar with shimmer effect
+- **Status Bar** – Shows hover URLs and browser version
+- **Cross-Platform** – Runs on Windows, macOS and Linux without code changes
+- **Keyboard Shortcuts** – Full keyboard control
+- **Zero Telemetry** – No tracking, no analytics, no data collection
 
 ---
 
-## Screenshots
+## Downloads
 
-> _Starte die App mit `npm start` und mache eigene Screenshots._
+[![GitHub Releases](https://img.shields.io/github/downloads/Shvquu/flux-browser/total?style=flat-square&color=9b3dff&label=Total%20Downloads)](https://github.com/Shvquu/flux-browser/releases)
+
+| Platform | File | Download |
+|----------|------|----------|
+| 🪟 Windows | `.exe` Installer | [Latest Release](https://github.com/Shvquu/flux-browser/releases/latest) |
+| 🍎 macOS   | `.dmg`           | [Latest Release](https://github.com/Shvquu/flux-browser/releases/latest) |
+| 🐧 Linux   | `.deb` / `.rpm`  | [Latest Release](https://github.com/Shvquu/flux-browser/releases/latest) |
+
+[→ View all releases and previous versions](https://github.com/Shvquu/flux-browser/releases)
 
 ---
 
-## Voraussetzungen
+## Prerequisites
 
-| Software | Mindestversion | Download |
-|----------|---------------|---------|
-| Node.js  | 18.x          | [nodejs.org](https://nodejs.org) |
-| npm      | 9.x           | wird mit Node.js mitgeliefert |
-| Git      | beliebig      | [git-scm.com](https://git-scm.com) |
+| Software | Minimum Version | Download |
+|----------|----------------|---------|
+| Node.js  | 18.x           | [nodejs.org](https://nodejs.org) |
+| npm      | 9.x            | Included with Node.js |
+| Git      | any            | [git-scm.com](https://git-scm.com) |
 
 ---
 
 ## Installation
 
 ```bash
-# 1. Repository klonen (oder Dateien herunterladen)
-git clone https://github.com/dein-name/flux-browser.git
+# 1. Clone the repository
+git clone https://github.com/Shvquu/flux-browser.git
 cd flux-browser
 
-# 2. Abhängigkeiten installieren
+# 2. Install dependencies
 npm install
 
-# 3. Browser starten
+# 3. Start the browser
 npm start
 ```
 
-> **Windows-Hinweis:** Falls Electron beim ersten Start einen Sicherheitsdialog zeigt, auf „Trotzdem ausführen" klicken.
+> **Windows note:** If Electron shows a security dialog on first launch, click "Run anyway".
 
 ---
 
-## Nutzung
+## Usage
 
-Nach dem Start öffnet sich FLUX direkt mit der eigenen Startseite. Von dort aus:
+FLUX opens directly on its custom start page. From there:
 
-- **URL eingeben** – in die Adressleiste klicken und URL oder Suchbegriff eingeben, Enter drücken
-- **Neuer Tab** – `+`-Button in der Tab-Leiste oder `Ctrl+T`
-- **Suchen** – beliebigen Text in die Adress- oder Startseiten-Suchleiste eingeben → automatische Google-Suche
-- **Quick-Links** – auf der Startseite direkt zu den wichtigsten Seiten springen
-
----
-
-## Tastenkürzel
-
-| Kürzel | Aktion |
-|--------|--------|
-| `Ctrl + T` | Neuer Tab |
-| `Ctrl + W` | Aktiven Tab schließen |
-| `Ctrl + L` | Adressleiste fokussieren |
-| `F5` / `Ctrl + R` | Seite neu laden |
-| `Alt + ←` | Zurück |
-| `Alt + →` | Vorwärts |
-| `Ctrl + 1–9` | Tab 1–9 direkt aktivieren |
+- **Enter a URL** – Click the address bar and type a URL or search query, then press Enter
+- **New Tab** – Click the `+` button in the tab bar or press `Ctrl+T`
+- **Search** – Type any text in the address bar or start page search → automatic Google search
+- **Quick-Links** – Jump to your most used sites directly from the start page
+- **Reorder Tabs** – Drag and drop tabs to rearrange them
 
 ---
 
-## Projektstruktur
+## Keyboard Shortcuts
+
+| Shortcut | Action |
+|----------|--------|
+| `Ctrl + T` | New tab |
+| `Ctrl + W` | Close active tab |
+| `Ctrl + L` | Focus address bar |
+| `F5` / `Ctrl + R` | Reload page |
+| `Alt + ←` | Go back |
+| `Alt + →` | Go forward |
+| `Ctrl + 1–9` | Switch to tab 1–9 directly |
+
+---
+
+## Project Structure
 
 ```
 flux-browser/
 │
-├── main.js              # Main Process – Fenster, IPC, Sicherheit
-├── preload.js           # Preload Script – sichere Bridge zu Node.js
-├── package.json         # Projekt-Metadaten & npm-Scripts
-├── forge.config.js      # Electron Forge Build-Konfiguration (optional)
+├── main.js              # Main Process – window, IPC, security
+├── preload.js           # Preload Script – secure bridge to Node.js
+├── package.json         # Project metadata & npm scripts
+├── forge.config.js      # Electron Forge build configuration
 │
-├── renderer/            # Renderer Process – die Benutzeroberfläche
-│   ├── index.html       # HTML-Struktur der Browser-Shell
-│   ├── renderer.js      # UI-Logik: Tabs, Navigation, Events
-│   ├── style.css        # Futuristisches Cyberpunk-Design
-│   └── flux.png         # App-Logo
+├── renderer/            # Renderer Process – the user interface
+│   ├── index.html       # HTML structure of the browser shell
+│   ├── renderer.js      # UI logic: tabs, navigation, events
+│   ├── style.css        # Futuristic cyberpunk design
+│   └── flux.png         # App logo
+│
+├── .github/
+│   └── workflows/
+│       └── build.yml    # GitHub Actions CI/CD
 │
 ├── README.md
-├── LICENSE.md
-└── CHANGELOG.md
+├── LICENSE.MD
+└── CHANGELOG.MD
 ```
 
 ---
 
-## Architektur
+## Architecture
 
-FLUX folgt der strikten Electron-Zwei-Prozess-Architektur:
+FLUX follows the strict Electron two-process architecture:
 
 ```
 ┌─────────────────────────────────────────────────┐
 │                  Main Process                    │
 │  Node.js + Electron API                         │
-│  • BrowserWindow erstellen                      │
-│  • IPC-Nachrichten verarbeiten                  │
-│  • Native OS-APIs (Menü, Tray, Dialoge)         │
+│  • Create BrowserWindow                         │
+│  • Handle IPC messages                          │
+│  • Native OS APIs (menu, tray, dialogs)         │
 └────────────────┬────────────────────────────────┘
                  │  IPC (ipcMain / ipcRenderer)
-                 │  über contextBridge (sicher)
+                 │  via contextBridge (secure)
 ┌────────────────▼────────────────────────────────┐
 │               Renderer Process                   │
 │  Chromium + Web APIs                            │
-│  • Browser-UI (HTML/CSS/JS)                     │
-│  • Tab-Verwaltung                               │
+│  • Browser UI (HTML/CSS/JS)                     │
+│  • Tab management                               │
 │  • Navigation                                   │
 └────────────────┬────────────────────────────────┘
-                 │  <webview> Tag (isolierter Prozess)
+                 │  <webview> tag (isolated process)
 ┌────────────────▼────────────────────────────────┐
-│             WebView Prozess(e)                   │
-│  • Geladene Webseiten                           │
-│  • Komplett sandboxed                           │
-│  • Kein Zugriff auf App-Internals               │
+│             WebView Process(es)                  │
+│  • Loaded web pages                             │
+│  • Fully sandboxed                              │
+│  • No access to app internals                   │
 └─────────────────────────────────────────────────┘
 ```
 
-**Warum `contextIsolation: true`?**
-Ohne diese Option könnte jede geladene Webseite über `window` auf Node.js-APIs zugreifen und z.B. Dateien lesen oder Prozesse starten. Mit `contextIsolation` sind die JavaScript-Kontexte vollständig getrennt.
+**Why `contextIsolation: true`?**  
+Without this option, any loaded web page could access Node.js APIs via `window` and read files or start processes. With `contextIsolation`, JavaScript contexts are completely separated.
 
-**Warum `preload.js`?**
-Das Preload-Script ist die einzige erlaubte Brücke. Es läuft in einem privilegierten Kontext und gibt über `contextBridge.exposeInMainWorld()` nur explizit definierte, sichere Methoden an den Renderer weiter.
+**Why `preload.js`?**  
+The preload script is the only allowed bridge. It runs in a privileged context and exposes only explicitly defined, safe methods to the renderer via `contextBridge.exposeInMainWorld()`.
 
 ---
 
 ## Build & Distribution
 
-### Voraussetzungen
-
-```bash
-npm install --save-dev @electron-forge/cli @electron-forge/maker-squirrel @electron-forge/maker-zip
-```
-
-### `forge.config.js` anlegen
-
-```js
-module.exports = {
-  packagerConfig: {
-    name: 'FLUX Browser',
-    executableName: 'flux-browser',
-    icon: './renderer/flux',   // .ico / .icns wird automatisch ergänzt
-  },
-  makers: [
-    {
-      name: '@electron-forge/maker-squirrel',  // Windows .exe Installer
-      config: {
-        name: 'flux_browser',
-        setupIcon: './renderer/flux.ico',
-      },
-    },
-    {
-      name: '@electron-forge/maker-zip',       // macOS & Linux .zip
-    },
-  ],
-}
-```
-
-### Build ausführen
+### Build locally
 
 ```bash
 npm run make
 ```
 
-Die fertigen Pakete landen in `out/make/`. Für Windows wird eine `.exe`-Installationsdatei erstellt.
+Finished packages are placed in `out/make/`. On Windows this creates a `.exe` installer.
 
-> **Icon-Hinweis:** Für Windows wird eine `.ico`-Datei benötigt. `flux.png` kann kostenlos auf [cloudconvert.com](https://cloudconvert.com/png-to-ico) konvertiert werden.
+### Automated builds via GitHub Actions
+
+Every push to a version tag (e.g. `v1.0.1`) automatically:
+1. Builds for Windows, macOS and Linux in parallel
+2. Creates a GitHub Release
+3. Attaches all installer files (`.exe`, `.dmg`, `.deb`, `.rpm`)
+
+```bash
+git tag v1.0.1
+git push origin v1.0.1
+```
+
+> **Icon note:** Windows requires a `.ico` file. Convert `flux.png` for free at [cloudconvert.com](https://cloudconvert.com/png-to-ico).
 
 ---
 
-## Anpassen
+## Customization
 
-### Quick-Links auf der Startseite ändern
+### Change quick-links on the start page
 
-In `renderer/renderer.js`, Funktion `showNewTabPage()`, das Array `quickLinks` anpassen:
+In `renderer/renderer.js`, function `showNewTabPage()`, edit the `quickLinks` array:
 
 ```js
 const quickLinks = [
-  { label: 'Google',  url: 'https://google.com',  icon: 'G' },
-  { label: 'Deine Seite', url: 'https://deine-url.de', icon: '★' },
-  // weitere Einträge...
+  { label: 'Google',    url: 'https://google.com',  icon: 'G' },
+  { label: 'Your Site', url: 'https://your-url.com', icon: '★' },
 ]
 ```
 
-### Startseite nach dem Öffnen ändern
+### Change colors
 
-In `renderer/renderer.js` ganz unten:
-
-```js
-// Eigene URL statt Startseite:
-createTab('https://deine-startseite.de')
-
-// Oder Startseite anzeigen (Standard):
-createTab(null)
-```
-
-### Farben anpassen
-
-Alle Farben sind als CSS-Variablen in `renderer/style.css` unter `:root { ... }` definiert und können dort zentral geändert werden.
+All colors are defined as CSS variables in `renderer/style.css` under `:root { ... }`.
 
 ---
 
-## Sicherheit
+## Security
 
-FLUX implementiert alle von Electron empfohlenen Sicherheits-Best-Practices:
+FLUX implements all Electron-recommended security best practices:
 
-| Maßnahme | Status | Beschreibung |
-|----------|--------|-------------|
-| `contextIsolation` | ✅ aktiv | JS-Kontexte sind strikt getrennt |
-| `nodeIntegration` | ✅ deaktiviert | Kein Node.js-Zugriff im Renderer |
-| `webSecurity` | ✅ aktiv | Same-Origin-Policy wird durchgesetzt |
-| `allowpopups` | ✅ deaktiviert | Keine automatischen Popup-Fenster |
-| Content Security Policy | ✅ gesetzt | Eingeschränkte Ressourcen für die App-Shell |
-| Preload-Bridge | ✅ | Nur explizit freigegebene APIs erreichbar |
+| Measure | Status | Description |
+|---------|--------|-------------|
+| `contextIsolation` | ✅ enabled | JS contexts are strictly separated |
+| `nodeIntegration` | ✅ disabled | No Node.js access in the renderer |
+| `webSecurity` | ✅ enabled | Same-origin policy enforced |
+| `allowpopups` | ✅ disabled | No automatic popup windows |
+| Content Security Policy | ✅ set | Restricted resources for the app shell |
+| Preload bridge | ✅ | Only explicitly exposed APIs reachable |
+| **Zero Telemetry** | ✅ | No tracking, no analytics, no data collection |
 
-Weitere Informationen: [Electron Security Documentation](https://www.electronjs.org/docs/latest/tutorial/security)
+Further reading: [Electron Security Documentation](https://www.electronjs.org/docs/latest/tutorial/security)
 
 ---
 
-## Lizenz
+## License
 
-MIT – siehe [LICENSE.md](LICENSE.MD)
+MIT – see [LICENSE.md](LICENSE.MD)

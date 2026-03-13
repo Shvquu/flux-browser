@@ -26,27 +26,39 @@ SOFTWARE.**
 
 ---
 
-## Drittanbieter-Lizenzen
+## Privacy Statement
 
-FLUX Browser basiert auf folgenden Open-Source-Projekten:
+> **Zero Telemetry. Zero Tracking. Full Control.**
 
-| Paket | Lizenz | Link |
-|-------|--------|------|
+FLUX Browser does not collect, transmit, or store any user data.
+There are no analytics SDKs, no crash reporters, no usage statistics,
+and no third-party tracking of any kind built into this software.
+What you do in your browser stays on your machine.
+
+---
+
+## Third-Party Licenses
+
+FLUX Browser is built on the following open-source projects:
+
+| Package | License | Link |
+|---------|---------|------|
 | [Electron](https://www.electronjs.org/) | MIT | https://github.com/electron/electron/blob/main/LICENSE |
-| [Chromium](https://www.chromium.org/) | BSD 3-Clause + weitere | https://chromium.googlesource.com/chromium/src/+/main/LICENSE |
-| [Node.js](https://nodejs.org/) | MIT + weitere | https://github.com/nodejs/node/blob/main/LICENSE |
+| [Chromium](https://www.chromium.org/) | BSD 3-Clause + others | https://chromium.googlesource.com/chromium/src/+/main/LICENSE |
+| [Node.js](https://nodejs.org/) | MIT + others | https://github.com/nodejs/node/blob/main/LICENSE |
+| [electron-squirrel-startup](https://github.com/mongodb-js/electron-squirrel-startup) | Apache-2.0 | https://github.com/mongodb-js/electron-squirrel-startup/blob/master/LICENSE |
 
 ### Google Fonts
 
-FLUX Browser lädt beim Start folgende Schriftarten von Google Fonts:
+FLUX Browser loads the following fonts from Google Fonts at startup:
 
 - **Orbitron** – SIL Open Font License 1.1
 - **JetBrains Mono** – SIL Open Font License 1.1
 - **Exo 2** – SIL Open Font License 1.1
 
-Weitere Informationen: https://fonts.google.com/
+Further information: https://fonts.google.com/
 
 ---
 
-> Hinweis: Das FLUX-Logo (`flux.png`) unterliegt dem Copyright des jeweiligen Erstellers
-> und ist nicht Teil dieser MIT-Lizenz.
+> Note: The FLUX logo (`flux.png`) is copyright of its respective creator
+> and is not covered by this MIT License.

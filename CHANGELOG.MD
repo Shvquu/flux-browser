@@ -1,110 +1,115 @@
 # Changelog
 
-Alle nennenswerten Änderungen an FLUX Browser werden in dieser Datei dokumentiert.
+All notable changes to FLUX Browser are documented in this file.
 
-Das Format basiert auf [Keep a Changelog](https://keepachangelog.com/de/1.0.0/)
-und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
+and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
 ## [Unreleased]
 
-> Geplante Features und Änderungen, die noch nicht veröffentlicht wurden.
+> Planned features and changes not yet released.
 
-### Geplant
-- Lesezeichen-Manager mit persistenter Speicherung
-- Browserverlauf mit Suchfunktion
-- Erweiterungs-Support via `session.loadExtension()`
-- Einstellungsseite (Startseite, Suchmaschine, Theme)
-- Download-Manager mit Fortschrittsanzeige
-- Benutzerdefinierte Quick-Links (hinzufügen / entfernen)
-- Dark/Light-Mode-Umschalter
-- Zoom-Steuerung (`Ctrl +`, `Ctrl -`, `Ctrl 0`)
-- Print-Funktion (`Ctrl + P`)
-- Rechtsklick-Kontextmenü
+### Planned
+- Bookmark manager with persistent storage
+- Browser history with search
+- Extension support via `session.loadExtension()`
+- Settings page (start page, search engine, theme)
+- Download manager with progress indicator
+- Custom quick-links (add / remove)
+- Dark/Light mode toggle
+- Zoom control (`Ctrl +`, `Ctrl -`, `Ctrl 0`)
+- Print function (`Ctrl + P`)
+- Right-click context menu
 
 ---
 
 ## [1.0.0] – 2025-03-13
 
-Erste vollständige Version von FLUX Browser.
+First official release of FLUX Browser.
 
-### Hinzugefügt
+> **Zero Telemetry. Zero Tracking. Full Control.**
 
-#### Browser-Core
-- Vollständiges Tab-System mit dynamischem Erstellen, Schließen und Wechseln
-- `<webview>`-basiertes Rendering mit vollständiger Prozess-Isolation
-- Vor/Zurück-Navigation mit korrektem History-Tracking
-- Reload-Funktion (toggle: Laden abbrechen / Seite neu laden)
-- Automatische URL-Erkennung: Domain → HTTPS, Text → Google-Suche
-- Neues-Fenster-Request wird als neuer Tab abgefangen (kein OS-Popup)
+### Added
 
-#### Benutzeroberfläche
-- Eigene rahmenlose Titelleiste (`frame: false`) mit Minimize/Maximize/Close
-- Futuristisches Cyberpunk-Design – Lila, Cyan, Orange passend zum FLUX-Logo
-- Animierter Ladebalken mit Shimmer-Effekt und asymptotischem Fortschritt
-- Sicherheitsindikator in der Adressleiste (grün = HTTPS, orange = HTTP)
-- Lade-Spinner pro Tab während des Ladevorgangs
-- Favicon-Anzeige pro Tab (mit Fallback-Icon)
-- Tab-Titel-Anzeige mit Tooltip bei langen Titeln
-- Statusleiste mit Hover-URL-Anzeige und Versionsnummer
+#### Browser Core
+- Full tab system – create, close, switch and drag & drop reorder tabs
+- `<webview>`-based rendering with full process isolation
+- Back/Forward navigation with correct history tracking
+- Reload function (toggle: cancel loading / reload page)
+- Automatic URL detection: domain → HTTPS, text → Google search
+- New-window requests are intercepted as new tabs (no OS popup)
 
-#### Startseite
-- Eigene New-Tab-Seite mit FLUX-Logo (schwebt mit Glow-Effekt)
-- Lebende Uhrzeit mit Datum (aktualisiert jede Sekunde)
-- Integrierte Suchleiste mit direkter Navigation
-- 6 Quick-Link-Kacheln: Google, YouTube, GitHub, Wikipedia, Reddit, X
-- Einblend-Animationen beim Öffnen eines neuen Tabs
+#### User Interface
+- Custom frameless title bar (`frame: false`) with minimize/maximize/close buttons
+- Futuristic cyberpunk design – purple, cyan, orange matching the FLUX logo
+- Animated loading bar with shimmer effect and asymptotic progress
+- Security indicator in the address bar (green = HTTPS, orange = HTTP)
+- Per-tab loading spinner during page load
+- Per-tab favicon display with fallback icon
+- Tab title display with tooltip for long titles
+- Status bar with hover URL display and version number
 
-#### Design-System
-- CSS Custom Properties für konsistentes Theming
-- Glassmorphism-Effekte auf UI-Elementen
-- Neon-Glow auf aktivem Tab (Lila-Cyan-Gradient-Linie)
-- Gradient-Text für FLUX-Schriftzug (Lila → Cyan → Weiß)
-- Schwebeanimation auf dem Startseiten-Logo
-- Scanlinien-Overlay als subtile Hintergrundtextur
-- Orbitron (Headings) + JetBrains Mono (URL) + Exo 2 (UI)
+#### Start Page
+- Custom new-tab page with FLUX logo (floating with glow effect)
+- Live clock with date (updates every second)
+- Integrated search bar with direct navigation
+- 6 quick-link tiles: Google, YouTube, GitHub, Wikipedia, Reddit, X
+- Fade-in animations when opening a new tab
 
-#### Sicherheit
-- `contextIsolation: true` – JS-Kontexte strikt getrennt
-- `nodeIntegration: false` – kein Node.js-Zugriff im Renderer
-- `webSecurity: true` – Same-Origin-Policy aktiv
-- `allowpopups: false` – keine automatischen Popups
-- Content Security Policy für die App-Shell
-- `contextBridge`-basierte Preload-Bridge (nur 4 explizite Methoden)
+#### Design System
+- CSS custom properties for consistent theming
+- Glassmorphism effects on UI elements
+- Neon glow on active tab (purple-cyan gradient line)
+- Gradient text for FLUX wordmark (purple → cyan → white)
+- Float animation on the start page logo
+- Scanline overlay as subtle background texture
+- Orbitron (headings) + JetBrains Mono (URL bar) + Exo 2 (UI)
 
-#### Tastenkürzel
-- `Ctrl+T` – Neuer Tab
-- `Ctrl+W` – Aktiven Tab schließen
-- `Ctrl+L` – Adressleiste fokussieren
-- `F5` / `Ctrl+R` – Seite neu laden
-- `Alt+←` / `Alt+→` – Vor/Zurück
-- `Ctrl+1–9` – Tab-Direktwechsel
+#### Security & Privacy
+- `contextIsolation: true` – JS contexts strictly separated
+- `nodeIntegration: false` – no Node.js access in the renderer
+- `webSecurity: true` – same-origin policy enforced
+- `allowpopups: false` – no automatic popups
+- Content Security Policy for the app shell
+- `contextBridge`-based preload bridge (only 4 explicit methods)
+- **Zero telemetry** – no tracking, no analytics, no data collection of any kind
 
-#### Plattform & Build
-- Läuft auf Windows, macOS und Linux ohne Codeänderungen
-- `npm start` – Entwicklungsmodus
-- Vorbereitung für Electron Forge (`forge.config.js`-Dokumentation)
-- `npm run make` – Cross-Platform-Build zu `.exe` / `.dmg` / `.zip`
-- App-Icon in der Taskleiste via `icon`-Property in `BrowserWindow`
+#### Keyboard Shortcuts
+- `Ctrl+T` – New tab
+- `Ctrl+W` – Close active tab
+- `Ctrl+L` – Focus address bar
+- `F5` / `Ctrl+R` – Reload page
+- `Alt+←` / `Alt+→` – Back/Forward
+- `Ctrl+1–9` – Direct tab switching
 
-### Technische Details
+#### Platform & Build
+- Runs on Windows, macOS and Linux without code changes
+- `npm start` – development mode
+- `npm run make` – cross-platform build to `.exe` / `.dmg` / `.deb` / `.rpm`
+- GitHub Actions CI/CD – automatic builds and releases on tag push
+- App icon in taskbar via `icon` property in `BrowserWindow`
+- Squirrel event handling for proper Windows installation
+  (desktop shortcut, Start Menu entry, Apps & Features entry)
+
+### Technical Details
 - Electron 29.x
 - Node.js 18.x+
-- Keine externen Runtime-Abhängigkeiten (nur `devDependencies`)
-- ~1.400 Zeilen Code verteilt auf 5 Dateien
+- Runtime dependency: `electron-squirrel-startup`
+- ~1,400 lines of code across 5 files
 
 ---
 
-## Versionsschema
+## Versioning
 
-FLUX Browser folgt [Semantic Versioning](https://semver.org/):
+FLUX Browser follows [Semantic Versioning](https://semver.org/):
 
-- **MAJOR** (`1.x.x`) – Inkompatible Änderungen an der Architektur
-- **MINOR** (`x.1.x`) – Neue Features, abwärtskompatibel
-- **PATCH** (`x.x.1`) – Bugfixes und kleine Verbesserungen
+- **MAJOR** (`1.x.x`) – Incompatible architectural changes
+- **MINOR** (`x.1.x`) – New features, backwards-compatible
+- **PATCH** (`x.x.1`) – Bug fixes and minor improvements
 
 ---
 
-[Unreleased]: https://github.com/dein-name/flux-browser/compare/v1.0.0...HEAD
-[1.0.0]: https://github.com/dein-name/flux-browser/releases/tag/v1.0.0
+[Unreleased]: https://github.com/Shvquu/flux-browser/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/Shvquu/flux-browser/releases/tag/v1.0.0
