@@ -130,6 +130,7 @@ jobs:
           cache: npm
 
       # Linux braucht zusätzliche System-Bibliotheken für Electron
+      # Hinweis: Ubuntu 24.04 (Noble) hat libasound2 → libasound2t64 umbenannt
       - name: Linux-Abhängigkeiten installieren
         run: |
           sudo apt-get update
@@ -138,8 +139,8 @@ jobs:
             libnotify-dev \
             libnss3 \
             libxss1 \
-            libasound2 \
-            rpm          # Für .rpm-Pakete
+            libasound2t64 \
+            rpm
 
       - name: npm install
         run: npm ci
