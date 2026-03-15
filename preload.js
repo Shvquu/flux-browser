@@ -15,6 +15,19 @@ contextBridge.exposeInMainWorld('windowAPI', {
   }
 })
 
+// ── Update API ────────────────────────────────────────────
+contextBridge.exposeInMainWorld('updateAPI', {
+  // Beim Start: prüfen ob Update vorhanden (kann null sein)
+  getInfo: () => ipcRenderer.invoke('update-get-info'),
+  // Release-Seite im System-Browser öffnen
+  openRelease: () => ipcRenderer.send('update-open-release'),
+  // Live-Event wenn Update erkannt wird (nach dem 3s-Delay)
+  onAvailable: (cb) => {
+    ipcRenderer.removeAllListeners('update-available')
+    ipcRenderer.on('update-available', (_, info) => cb(info))
+  },
+})
+
 // ── FLUX Trust Network API ───────────────────────────────
 contextBridge.exposeInMainWorld('trustAPI', {
   // Trust-Config für Domain abrufen

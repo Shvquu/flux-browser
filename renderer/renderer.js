@@ -46,6 +46,12 @@ const state = {
   tabCounter: 0,      // Zähler für eindeutige Tab-IDs
 }
 
+// ── Update State ─────────────────────────────────────────────
+const update = {
+  info: null,        // { latestVersion, currentVersion, releaseUrl, publishedAt }
+  dismissed: false,  // Nutzer hat Banner weggeklickt
+}
+
 // ── Trust State ──────────────────────────────────────────────
 const trust = {
   // domain → config cache (gespiegelt vom Main Process)
@@ -225,6 +231,9 @@ function showNewTabPage(tabId, isEphemeral = false) {
   `
 
   dom.webviewContainer.appendChild(screen)
+
+  // Update-Banner einblenden falls Update bereits bekannt
+  showUpdateBanner()
 
   // Uhrzeit jede Sekunde aktualisieren
   const clockEl = screen.querySelector(`#nt-clock-${tabId}`)
@@ -1343,6 +1352,58 @@ window.shieldAPI.onStatusChanged((enabled) => {
 
 // Startet mit der FLUX-Startseite (eigene New-Tab-Page)
 createTab(null)
+
+// Update-Info beim Start laden
+// Update-Check
+async function pollForUpdate() {
+  console.log('[FLUX Update UI] polling...')
+  try {
+    const info = await window.updateAPI.getInfo()
+    console.log('[FLUX Update UI] getInfo result:', info)
+    if (info && !update.info) {
+      update.info = info
+      showUpdateBanner()
+    }
+  } catch(e) {
+    console.error('[FLUX Update UI] poll error:', e)
+  }
+}
+
+console.log('[FLUX Update UI] setTimeout registered')
+setTimeout(pollForUpdate, 4000)
+
+function showUpdateBanner() {
+  console.log('[FLUX Update UI] showUpdateBanner called, info:', !!update.info, 'dismissed:', update.dismissed)
+  if (!update.info || update.dismissed) return
+
+  const bar = document.getElementById('flux-update-bar')
+  console.log('[FLUX Update UI] bar element:', bar)
+  if (!bar) return
+
+  bar.style.display = 'flex'
+  console.log('[FLUX Update UI] bar display set to flex')
+  bar.innerHTML = `
+    <div class="nt-update-left">
+      <span class="nt-update-icon">🚀</span>
+      <div class="nt-update-text">
+        <strong>FLUX Browser ${update.info.latestVersion} is available</strong>
+        <span>You're on v${update.info.currentVersion} &middot; Click to download the latest release</span>
+      </div>
+    </div>
+    <div class="nt-update-actions">
+      <button id="flux-update-download">Download Update</button>
+      <button id="flux-update-dismiss" title="Dismiss">✕</button>
+    </div>`
+
+  document.getElementById('flux-update-download').addEventListener('click', () => {
+    window.updateAPI.openRelease()
+  })
+  document.getElementById('flux-update-dismiss').addEventListener('click', () => {
+    update.dismissed = true
+    bar.style.display = 'none'
+    bar.innerHTML = ''
+  })
+}
 
 // Trust-Updates live empfangen
 window.trustAPI.onUpdate((domain, config) => {
