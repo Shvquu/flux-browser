@@ -4,6 +4,7 @@
 
 const { app, BrowserWindow, ipcMain, session } = require('electron')
 const path = require('path')
+const networkTransparency = require('./network-transparency')
 
 // electron-builder / NSIS übernimmt Shortcuts + Registry automatisch
 
@@ -310,35 +311,26 @@ function setupFingerprintIPC() {
   )
 }
 
-// ── Netzwerkfilter (Herzstück des Shield) ─────────────────
-function setupNetworkFilter() {
-  session.defaultSession.webRequest.onBeforeRequest((details, callback) => {
-    const url   = details.url
-    const type  = details.resourceType   // 'mainFrame', 'script', 'image' etc.
+// ── Network Transparency IPC ──────────────────────────────
+function setupNetworkTransparencyIPC() {
+  const handlers = networkTransparency.getIpcHandlers()
 
-    // Eigene App-URLs immer erlauben
-    if (url.startsWith('file://') || url.startsWith('chrome-extension://')) {
-      return callback({ cancel: false })
-    }
-
-    // Tracker IMMER blockieren (unabhängig vom Shield)
-    if (isTrackerDomain(url)) {
-      logConnection('blocked-tracker', url, 'Known tracker domain')
-      return callback({ cancel: true })
-    }
-
-    // Im Shield-Modus: Hintergrundanfragen blockieren
-    if (shieldEnabled) {
-      if (isInternalRequest(url)) {
-        logConnection('blocked-bg', url, 'Background/internal request blocked by FLUX Shield')
-        return callback({ cancel: true })
-      }
-    }
-
-    // Erlaubt
-    logConnection('allowed', url, '')
-    callback({ cancel: false })
+  // Register all IPC handlers
+  Object.keys(handlers).forEach(channel => {
+    ipcMain.handle(channel, handlers[channel])
   })
+}
+
+// ── Netzwerkfilter (Herzstück des Shield) ─────────────────
+// Now uses the Network Transparency system for comprehensive logging
+function setupNetworkFilter() {
+  // Initialize the network transparency interception system
+  // It will handle all request logging, classification, and blocking
+  networkTransparency.setupNetworkInterception(shieldEnabled)
+
+  // Note: The old logConnection is still called for backward compatibility
+  // with the existing flux://network page UI
+  // The Network Transparency system provides a much richer dataset
 }
 
 // ── CSP + App starten ─────────────────────────────────────
@@ -359,6 +351,7 @@ app.whenReady().then(() => {
   })
 
   setupNetworkFilter()
+  setupNetworkTransparencyIPC()
   setupShieldIPC()
   setupFingerprintIPC()
   setupEphemeralIPC()

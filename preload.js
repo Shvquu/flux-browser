@@ -92,3 +92,30 @@ contextBridge.exposeInMainWorld('shieldAPI', {
     ipcRenderer.on('shield-status-changed', (_, enabled) => callback(enabled))
   }
 })
+
+// ── Network Transparency API ──────────────────────────────
+contextBridge.exposeInMainWorld('networkTransparencyAPI', {
+  // Get full request history with stats
+  getHistory: () => ipcRenderer.invoke('network-transparency-get-history'),
+
+  // Get paginated history
+  getPage: (offset, limit) => ipcRenderer.invoke('network-transparency-get-page', offset, limit),
+
+  // Get statistics only
+  getStats: () => ipcRenderer.invoke('network-transparency-get-stats'),
+
+  // Clear all history
+  clear: () => ipcRenderer.invoke('network-transparency-clear'),
+
+  // Get list of tracker domains
+  getTrackers: () => ipcRenderer.invoke('network-transparency-get-trackers'),
+
+  // Add custom tracker domain
+  addTracker: (domain) => ipcRenderer.invoke('network-transparency-add-tracker', domain),
+
+  // Real-time event streaming
+  onEvent: (callback) => {
+    ipcRenderer.removeAllListeners('network-transparency-event')
+    ipcRenderer.on('network-transparency-event', (_, data) => callback(data))
+  },
+})
