@@ -46,6 +46,12 @@ const state = {
   tabCounter: 0,      // Zähler für eindeutige Tab-IDs
 }
 
+// ── Update State ─────────────────────────────────────────────
+const update = {
+  info: null,        // { latestVersion, currentVersion, releaseUrl, publishedAt }
+  dismissed: false,  // Nutzer hat Banner weggeklickt
+}
+
 // ── Trust State ──────────────────────────────────────────────
 const trust = {
   // domain → config cache (gespiegelt vom Main Process)
@@ -95,6 +101,7 @@ function parseInput(input) {
 
   // flux:// interne Seiten
   if (input === 'flux://network')  return 'flux://network'
+  if (input === 'flux://network-transparency') return 'flux://network-transparency'
   if (input === 'flux://privacy')  return 'flux://privacy'
   if (input === 'flux://trust')    return 'flux://trust'
 
@@ -225,6 +232,9 @@ function showNewTabPage(tabId, isEphemeral = false) {
   `
 
   dom.webviewContainer.appendChild(screen)
+
+  // Update-Banner einblenden falls Update bereits bekannt
+  showUpdateBanner()
 
   // Uhrzeit jede Sekunde aktualisieren
   const clockEl = screen.querySelector(`#nt-clock-${tabId}`)
@@ -426,7 +436,7 @@ function activateTab(id) {
     prevTab.webview.classList.remove('active')
     prevTab.newTabScreen?.classList.add('hidden')
     // ALLE internen Seiten des alten Tabs verstecken
-    ;['flux-network', 'flux-privacy', 'flux-trust'].forEach(prefix => {
+    ;['flux-network', 'flux-privacy', 'flux-trust', 'network-transparency'].forEach(prefix => {
       const el = document.getElementById(`${prefix}-${prevTab.id}`)
       if (el) el.style.display = 'none'
     })
@@ -440,7 +450,7 @@ function activateTab(id) {
 
   // ALLE internen Seiten des neuen Tabs erst verstecken,
   // dann nur die richtige einblenden (verhindert Überlappungen)
-  ;['flux-network', 'flux-privacy', 'flux-trust'].forEach(prefix => {
+  ;['flux-network', 'flux-privacy', 'flux-trust', 'network-transparency'].forEach(prefix => {
     const el = document.getElementById(`${prefix}-${tab.id}`)
     if (el) el.style.display = 'none'
   })
@@ -450,6 +460,10 @@ function activateTab(id) {
     const el = document.getElementById(`flux-network-${tab.id}`)
     if (el) { el.style.display = 'block' } else { renderNetworkPage(tab.id) }
     dom.urlInput.value = 'flux://network'
+  } else if (tab.isNetworkTransparencyPage) {
+    const el = document.getElementById(`network-transparency-${tab.id}`)
+    if (el) { el.style.display = 'block' } else { renderNetworkTransparencyPage(tab.id) }
+    dom.urlInput.value = 'flux://network-transparency'
   } else if (tab.isPrivacyPage) {
     const el = document.getElementById(`flux-privacy-${tab.id}`)
     if (el) { el.style.display = 'block' } else { renderPrivacyPage(tab.id) }
@@ -484,6 +498,7 @@ function closeTab(id) {
   document.getElementById(`flux-network-${tab.id}`)?.remove()
   document.getElementById(`flux-privacy-${tab.id}`)?.remove()
   document.getElementById(`flux-trust-${tab.id}`)?.remove()
+  document.getElementById(`network-transparency-${tab.id}`)?.remove()
 
   // Ephemeral: Partition vollständig löschen (Cookies, Cache, Storage)
   if (tab.isEphemeral && tab.partitionName) {
@@ -704,6 +719,7 @@ function navigate(input) {
     document.querySelectorAll('.flux-network-page').forEach(el => el.remove())
     tab.isNetworkPage = true
     tab.isPrivacyPage = false
+    tab.isNetworkTransparencyPage = false
     dom.urlInput.value = 'flux://network'
     dom.urlInput.blur()
     const titleEl = tab.tabEl.querySelector('.tab-title')
@@ -712,16 +728,33 @@ function navigate(input) {
     return
   }
 
+  // flux://network-transparency → Network Transparency Panel
+  if (url === 'flux://network-transparency') {
+    tab.isNetworkTransparencyPage = true
+    tab.isNetworkPage = false
+    tab.isPrivacyPage = false
+    tab.isTrustPage = false
+    dom.urlInput.value = 'flux://network-transparency'
+    dom.urlInput.blur()
+    const titleEl = tab.tabEl.querySelector('.tab-title')
+    if (titleEl) titleEl.textContent = 'Network Transparency'
+    renderNetworkTransparencyPage(tab.id)
+    return
+  }
+
   // Immer: interne Seiten wegräumen + Webview sichtbar machen
   tab.isPrivacyPage = false
   tab.isNetworkPage = false
   tab.isTrustPage   = false
+  tab.isNetworkTransparencyPage = false
   const privPage  = document.getElementById(`flux-privacy-${tab.id}`)
   const netPage   = document.getElementById(`flux-network-${tab.id}`)
   const trustPage = document.getElementById(`flux-trust-${tab.id}`)
+  const netTransPage = document.getElementById(`network-transparency-${tab.id}`)
   if (privPage)  privPage.style.display  = 'none'
   if (netPage)   netPage.style.display   = 'none'
   if (trustPage) trustPage.style.display = 'none'
+  if (netTransPage) netTransPage.style.display = 'none'
   tab.webview.classList.add('active')
 
   tab.webview.loadURL(url)
@@ -1291,6 +1324,358 @@ function renderNetworkPage(tabId) {
   }
 }
 
+// ── Network Transparency Panel ────────────────────────────
+
+function renderNetworkTransparencyPage(tabId) {
+  const tab = getTab(tabId)
+  if (!tab) return
+
+  // Remove existing page if any
+  const existing = document.getElementById(`network-transparency-${tabId}`)
+  if (existing) existing.remove()
+
+  const C = {
+    bg: '#060508',
+    surface: 'rgba(10,7,14,0.95)',
+    border: 'rgba(140,60,255,0.18)',
+    accent: '#5ce0ff',
+    accent2: '#9b3dff',
+    text: '#e8d8ff',
+    muted: 'rgba(210,180,255,0.55)',
+    green: '#4ade80',
+    yellow: '#facc15',
+    red: '#f87171',
+    orange: '#ff6a00',
+    SF: "'Segoe UI',system-ui,-apple-system,sans-serif",
+  }
+
+  const page = document.createElement('div')
+  page.id = `network-transparency-${tabId}`
+  Object.assign(page.style, {
+    position: 'absolute',
+    inset: '0',
+    background: C.bg,
+    overflowY: 'auto',
+    padding: '40px',
+    fontFamily: C.SF,
+    color: C.text,
+    zIndex: '10',
+    boxSizing: 'border-box',
+  })
+
+  page.innerHTML = `
+    <!-- Header -->
+    <div style="display:flex;align-items:flex-start;gap:16px;margin-bottom:32px;
+      padding-bottom:20px;border-bottom:1px solid ${C.border};">
+      <div>
+        <div style="font-size:20px;font-weight:800;color:${C.accent};">
+          🌐 Network Transparency Panel
+        </div>
+        <div style="font-size:12px;color:${C.muted};letter-spacing:1px;margin-top:4px;">
+          flux://network-transparency · Complete Request Monitoring
+        </div>
+      </div>
+      <div style="margin-left:auto;padding:6px 14px;background:${C.accent2}10;
+        border:1px solid ${C.accent2}33;border-radius:20px;font-size:11px;color:${C.accent2};white-space:nowrap;">
+        <span style="display:inline-block;width:6px;height:6px;background:${C.accent2};
+          border-radius:50%;box-shadow:0 0 6px ${C.accent2};margin-right:6px;"></span>
+        Real-time Monitoring · Zero Telemetry · Local Only
+      </div>
+    </div>
+
+    <!-- Statistics Grid -->
+    <div id="nt-stats-${tabId}" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:28px;">
+      <div style="padding:18px;background:rgba(12,8,20,0.7);border:1px solid ${C.border};
+        border-left:3px solid ${C.accent2};border-radius:10px;text-align:center;">
+        <div style="font-size:32px;font-weight:800;color:${C.accent2};margin-bottom:6px;" id="nt-total-${tabId}">0</div>
+        <div style="font-size:11px;color:${C.muted};text-transform:uppercase;letter-spacing:1px;">Total Requests</div>
+      </div>
+      <div style="padding:18px;background:rgba(12,8,20,0.7);border:1px solid ${C.border};
+        border-left:3px solid ${C.green};border-radius:10px;text-align:center;">
+        <div style="font-size:32px;font-weight:800;color:${C.green};margin-bottom:6px;" id="nt-allowed-${tabId}">0</div>
+        <div style="font-size:11px;color:${C.muted};text-transform:uppercase;letter-spacing:1px;">Allowed</div>
+      </div>
+      <div style="padding:18px;background:rgba(12,8,20,0.7);border:1px solid ${C.border};
+        border-left:3px solid ${C.red};border-radius:10px;text-align:center;">
+        <div style="font-size:32px;font-weight:800;color:${C.red};margin-bottom:6px;" id="nt-blocked-${tabId}">0</div>
+        <div style="font-size:11px;color:${C.muted};text-transform:uppercase;letter-spacing:1px;">Blocked</div>
+      </div>
+      <div style="padding:18px;background:rgba(12,8,20,0.7);border:1px solid ${C.border};
+        border-left:3px solid ${C.accent};border-radius:10px;text-align:center;">
+        <div style="font-size:32px;font-weight:800;color:${C.accent};margin-bottom:6px;" id="nt-trackers-${tabId}">0</div>
+        <div style="font-size:11px;color:${C.muted};text-transform:uppercase;letter-spacing:1px;">Trackers</div>
+      </div>
+    </div>
+
+    <!-- Filters -->
+    <div style="display:flex;gap:12px;margin-bottom:20px;align-items:center;flex-wrap:wrap;">
+      <div style="font-size:10px;font-weight:700;letter-spacing:2px;color:${C.accent2};
+        text-transform:uppercase;flex-shrink:0;">Filters:</div>
+
+      <select id="nt-filter-type-${tabId}" style="padding:6px 12px;background:rgba(12,8,20,0.7);
+        border:1px solid ${C.border};border-radius:6px;color:${C.text};font-size:11px;
+        outline:none;cursor:pointer;">
+        <option value="all">All Types</option>
+        <option value="document">Documents</option>
+        <option value="script">Scripts</option>
+        <option value="xhr">XHR/Fetch</option>
+        <option value="image">Images</option>
+        <option value="stylesheet">Stylesheets</option>
+        <option value="font">Fonts</option>
+        <option value="media">Media</option>
+        <option value="websocket">WebSocket</option>
+        <option value="tracker">Trackers</option>
+      </select>
+
+      <select id="nt-filter-status-${tabId}" style="padding:6px 12px;background:rgba(12,8,20,0.7);
+        border:1px solid ${C.border};border-radius:6px;color:${C.text};font-size:11px;
+        outline:none;cursor:pointer;">
+        <option value="all">All Status</option>
+        <option value="allowed">Allowed</option>
+        <option value="blocked">Blocked</option>
+      </select>
+
+      <input id="nt-filter-domain-${tabId}" type="text" placeholder="Filter by domain..."
+        style="flex:1;min-width:200px;padding:6px 12px;background:rgba(12,8,20,0.7);
+        border:1px solid ${C.border};border-radius:6px;color:${C.text};font-size:11px;
+        outline:none;" />
+
+      <button id="nt-clear-${tabId}" style="padding:6px 16px;background:${C.red}22;
+        border:1px solid ${C.red}44;border-radius:6px;color:${C.red};font-size:11px;
+        font-weight:600;cursor:pointer;transition:all 0.15s;">
+        Clear History
+      </button>
+
+      <button id="nt-refresh-${tabId}" style="padding:6px 16px;background:${C.accent}22;
+        border:1px solid ${C.accent}44;border-radius:6px;color:${C.accent};font-size:11px;
+        font-weight:600;cursor:pointer;transition:all 0.15s;">
+        Refresh
+      </button>
+    </div>
+
+    <!-- Request List Header -->
+    <div style="display:grid;grid-template-columns:90px 1fr 110px 70px 100px;gap:12px;
+      padding:10px 16px;background:rgba(12,8,20,0.7);border:1px solid ${C.border};
+      border-radius:8px 8px 0 0;font-size:10px;font-weight:700;letter-spacing:1px;
+      color:${C.muted};text-transform:uppercase;">
+      <div>Status</div>
+      <div>URL / Domain</div>
+      <div>Type</div>
+      <div>Method</div>
+      <div>Time</div>
+    </div>
+
+    <!-- Request List -->
+    <div id="nt-requests-${tabId}" style="max-height:600px;overflow-y:auto;
+      border:1px solid ${C.border};border-top:none;border-radius:0 0 8px 8px;
+      background:rgba(8,5,12,0.5);">
+      <div style="text-align:center;padding:40px 0;color:${C.muted};font-size:13px;">
+        Loading network data...
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div style="display:flex;align-items:center;justify-content:space-between;
+      padding-top:20px;border-top:1px solid ${C.border};margin-top:20px;
+      font-size:11px;color:${C.muted};letter-spacing:0.5px;">
+      <span>FLUX Browser — Zero Telemetry · Zero Tracking · Full Control</span>
+      <span id="nt-count-${tabId}" style="color:${C.accent};">Loading...</span>
+    </div>
+  `
+
+  // Hide webview, show network transparency page
+  tab.webview.classList.remove('active')
+  if (tab.newTabScreen) tab.newTabScreen.classList.add('hidden')
+  dom.webviewContainer.appendChild(page)
+
+  // Setup functionality
+  setupNetworkTransparencyPage(tabId)
+}
+
+function setupNetworkTransparencyPage(tabId) {
+  const C = {
+    text: '#e8d8ff',
+    muted: 'rgba(210,180,255,0.55)',
+    green: '#4ade80',
+    red: '#f87171',
+    yellow: '#facc15',
+    border: 'rgba(140,60,255,0.18)',
+  }
+
+  let currentFilters = {
+    type: 'all',
+    status: 'all',
+    domain: '',
+  }
+
+  // Load and render data
+  async function loadAndRender() {
+    try {
+      const data = await window.networkTransparencyAPI.getHistory()
+      const requests = data.requests || []
+      const stats = data.stats || {}
+
+      // Update stats
+      document.getElementById(`nt-total-${tabId}`).textContent = stats.total || 0
+      document.getElementById(`nt-allowed-${tabId}`).textContent = stats.allowed || 0
+      document.getElementById(`nt-blocked-${tabId}`).textContent = stats.blocked || 0
+      document.getElementById(`nt-trackers-${tabId}`).textContent = stats.trackers || 0
+
+      // Filter requests
+      const filtered = requests.filter(req => {
+        if (currentFilters.type !== 'all' && req.type !== currentFilters.type && req.category !== currentFilters.type) {
+          return false
+        }
+        if (currentFilters.status !== 'all' && req.status !== currentFilters.status) {
+          return false
+        }
+        if (currentFilters.domain) {
+          const search = currentFilters.domain.toLowerCase()
+          if (!req.url.toLowerCase().includes(search) &&
+              (!req.domain || !req.domain.toLowerCase().includes(search))) {
+            return false
+          }
+        }
+        return true
+      })
+
+      // Render requests
+      renderRequestList(tabId, filtered)
+
+      // Update counter
+      document.getElementById(`nt-count-${tabId}`).textContent =
+        `Showing ${filtered.length} of ${requests.length} requests`
+
+    } catch (error) {
+      console.error('Failed to load network data:', error)
+    }
+  }
+
+  function renderRequestList(tabId, requests) {
+    const listEl = document.getElementById(`nt-requests-${tabId}`)
+    if (!listEl) return
+
+    if (requests.length === 0) {
+      listEl.innerHTML = `
+        <div style="text-align:center;padding:60px 0;color:${C.muted};font-size:13px;">
+          No requests to display. Browse a page to see network activity.
+        </div>
+      `
+      return
+    }
+
+    // Display first 100 for performance
+    const displayed = requests.slice(0, 100)
+
+    listEl.innerHTML = displayed.map(req => {
+      const statusColor = req.status === 'allowed' ? C.green : C.red
+      const statusBg = req.status === 'allowed' ? `${C.green}18` : `${C.red}18`
+      const statusBorder = req.status === 'allowed' ? `${C.green}44` : `${C.red}44`
+      const statusText = req.status === 'allowed' ? '✓ Allow' : '✗ Block'
+
+      const typeColor = req.category === 'tracker' ? C.red :
+                       req.category === 'internal' ? C.yellow : C.muted
+
+      const domain = req.domain || 'unknown'
+      const displayUrl = req.url.length > 70 ? req.url.substring(0, 70) + '...' : req.url
+
+      const timeAgo = formatTimeAgo(req.timestamp)
+
+      return `
+        <div style="display:grid;grid-template-columns:90px 1fr 110px 70px 100px;gap:12px;
+          padding:12px 16px;border-bottom:1px solid ${C.border};
+          transition:background 0.15s;cursor:pointer;" class="nt-request-row"
+          onmouseenter="this.style.background='rgba(140,60,255,0.08)'"
+          onmouseleave="this.style.background='transparent'"
+          title="${req.url}">
+
+          <div>
+            <span style="font-size:9px;font-weight:700;padding:3px 7px;border-radius:4px;
+              background:${statusBg};color:${statusColor};border:1px solid ${statusBorder};
+              text-transform:uppercase;letter-spacing:0.3px;">
+              ${statusText}
+            </span>
+          </div>
+
+          <div style="font-size:11px;color:${C.text};overflow:hidden;text-overflow:ellipsis;">
+            <div style="font-weight:600;margin-bottom:2px;">${domain}</div>
+            <div style="font-size:10px;color:${C.muted};font-family:monospace;overflow:hidden;
+              text-overflow:ellipsis;white-space:nowrap;">
+              ${displayUrl}
+            </div>
+            ${req.reason ? `<div style="font-size:9px;color:${C.red};margin-top:2px;">
+              ${req.reason}
+            </div>` : ''}
+          </div>
+
+          <div>
+            <span style="font-size:9px;padding:2px 6px;border-radius:4px;
+              background:${typeColor}18;color:${typeColor};border:1px solid ${typeColor}33;
+              text-transform:uppercase;letter-spacing:0.5px;">
+              ${req.type || 'other'}
+            </span>
+          </div>
+
+          <div style="font-size:11px;color:${C.muted};font-weight:600;">
+            ${req.method || 'GET'}
+          </div>
+
+          <div style="font-size:10px;color:${C.muted};">
+            ${timeAgo}
+          </div>
+        </div>
+      `
+    }).join('')
+  }
+
+  function formatTimeAgo(timestamp) {
+    const seconds = Math.floor((Date.now() - timestamp) / 1000)
+    if (seconds < 5) return 'just now'
+    if (seconds < 60) return `${seconds}s ago`
+    if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`
+    if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`
+    return `${Math.floor(seconds / 86400)}d ago`
+  }
+
+  // Event listeners
+  document.getElementById(`nt-filter-type-${tabId}`)?.addEventListener('change', (e) => {
+    currentFilters.type = e.target.value
+    loadAndRender()
+  })
+
+  document.getElementById(`nt-filter-status-${tabId}`)?.addEventListener('change', (e) => {
+    currentFilters.status = e.target.value
+    loadAndRender()
+  })
+
+  document.getElementById(`nt-filter-domain-${tabId}`)?.addEventListener('input', (e) => {
+    currentFilters.domain = e.target.value
+    loadAndRender()
+  })
+
+  document.getElementById(`nt-clear-${tabId}`)?.addEventListener('click', async () => {
+    if (confirm('Clear all network history?')) {
+      await window.networkTransparencyAPI.clear()
+      loadAndRender()
+    }
+  })
+
+  document.getElementById(`nt-refresh-${tabId}`)?.addEventListener('click', () => {
+    loadAndRender()
+  })
+
+  // Real-time updates
+  window.networkTransparencyAPI.onEvent(() => {
+    const page = document.getElementById(`network-transparency-${tabId}`)
+    if (page && page.style.display !== 'none') {
+      loadAndRender()
+    }
+  })
+
+  // Initial load
+  loadAndRender()
+}
+
 // Shield-Button Klick: Umschalten oder flux://network öffnen
 dom.btnShield?.addEventListener('click', (e) => {
   // Ctrl+Klick → Network-Seite im neuen Tab
@@ -1343,6 +1728,58 @@ window.shieldAPI.onStatusChanged((enabled) => {
 
 // Startet mit der FLUX-Startseite (eigene New-Tab-Page)
 createTab(null)
+
+// Update-Info beim Start laden
+// Update-Check
+async function pollForUpdate() {
+  console.log('[FLUX Update UI] polling...')
+  try {
+    const info = await window.updateAPI.getInfo()
+    console.log('[FLUX Update UI] getInfo result:', info)
+    if (info && !update.info) {
+      update.info = info
+      showUpdateBanner()
+    }
+  } catch(e) {
+    console.error('[FLUX Update UI] poll error:', e)
+  }
+}
+
+console.log('[FLUX Update UI] setTimeout registered')
+setTimeout(pollForUpdate, 4000)
+
+function showUpdateBanner() {
+  console.log('[FLUX Update UI] showUpdateBanner called, info:', !!update.info, 'dismissed:', update.dismissed)
+  if (!update.info || update.dismissed) return
+
+  const bar = document.getElementById('flux-update-bar')
+  console.log('[FLUX Update UI] bar element:', bar)
+  if (!bar) return
+
+  bar.style.display = 'flex'
+  console.log('[FLUX Update UI] bar display set to flex')
+  bar.innerHTML = `
+    <div class="nt-update-left">
+      <span class="nt-update-icon">🚀</span>
+      <div class="nt-update-text">
+        <strong>FLUX Browser ${update.info.latestVersion} is available</strong>
+        <span>You're on v${update.info.currentVersion} &middot; Click to download the latest release</span>
+      </div>
+    </div>
+    <div class="nt-update-actions">
+      <button id="flux-update-download">Download Update</button>
+      <button id="flux-update-dismiss" title="Dismiss">✕</button>
+    </div>`
+
+  document.getElementById('flux-update-download').addEventListener('click', () => {
+    window.updateAPI.openRelease()
+  })
+  document.getElementById('flux-update-dismiss').addEventListener('click', () => {
+    update.dismissed = true
+    bar.style.display = 'none'
+    bar.innerHTML = ''
+  })
+}
 
 // Trust-Updates live empfangen
 window.trustAPI.onUpdate((domain, config) => {

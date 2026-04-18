@@ -4,8 +4,9 @@
 
 const { app, BrowserWindow, ipcMain, session } = require('electron')
 const path = require('path')
+const networkTransparency = require('./network-transparency')
 
-if (require('electron-squirrel-startup')) app.quit()
+// electron-builder / NSIS übernimmt Shortcuts + Registry automatisch
 
 // ── FLUX Shield – Zero-Connection Mode ────────────────────
 // Globaler State für den Shield-Modus.
@@ -75,6 +76,13 @@ function createWindow() {
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'))
 
   // Fenstersteuerung
+  // DevTools: Ctrl+Shift+I (nur für Entwicklung)
+  const { globalShortcut } = require('electron')
+  globalShortcut.register('CommandOrControl+Shift+I', () => {
+    const focused = BrowserWindow.getFocusedWindow()
+    if (focused) focused.webContents.toggleDevTools()
+  })
+
   ipcMain.on('window-minimize', () => win.minimize())
   ipcMain.on('window-maximize', () => {
     win.isMaximized() ? win.unmaximize() : win.maximize()
@@ -109,6 +117,78 @@ const fingerprintStats = {
   navigator: 0,
   screen:    0,
   total:     0,
+}
+
+// ── Update Checker ────────────────────────────────────────
+// Zero-Telemetry-konform: Es wird KEINE Information über den
+// Nutzer, das Gerät oder die Nutzung übermittelt.
+// Es handelt sich um eine einfache GET-Anfrage an die öffentliche
+// GitHub Releases API – equivalent zu einem normalen Seitenaufruf.
+// GitHub erhält dabei nicht mehr Daten als bei jedem anderen Request.
+
+const GITHUB_REPO    = 'Shvquu/flux-browser'
+const RELEASES_API   = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`
+const RELEASES_PAGE  = `https://github.com/${GITHUB_REPO}/releases/latest`
+
+let updateInfo = null  // { latestVersion, releaseUrl, publishedAt } | null
+
+function compareVersions(a, b) {
+  // Gibt  1 zurück wenn a > b (a ist neuer)
+  //       0 wenn gleich
+  //      -1 wenn a < b
+  const pa = a.replace(/^v/, '').split('.').map(Number)
+  const pb = b.replace(/^v/, '').split('.').map(Number)
+  for (let i = 0; i < 3; i++) {
+    if ((pa[i] || 0) > (pb[i] || 0)) return  1
+    if ((pa[i] || 0) < (pb[i] || 0)) return -1
+  }
+  return 0
+}
+
+async function checkForUpdates() {
+  try {
+    // fetch() ist in Electron 29+ nativ im Main Process verfügbar
+    const res  = await fetch(RELEASES_API, {
+      headers: { 'User-Agent': 'FLUX-Browser-UpdateCheck' }
+    })
+    if (!res.ok) { console.log('[FLUX Update] API response:', res.status); return }
+
+    const data          = await res.json()
+    const latestVersion = (data.tag_name || '').replace(/^v/, '')
+    const currentVersion = app.getVersion()
+
+    console.log(`[FLUX Update] current=${currentVersion} latest=${latestVersion}`)
+
+    if (latestVersion && compareVersions(latestVersion, currentVersion) > 0) {
+      updateInfo = {
+        latestVersion,
+        currentVersion,
+        releaseUrl: data.html_url || RELEASES_PAGE,
+        publishedAt: data.published_at || null,
+      }
+      console.log('[FLUX Update] Update available:', updateInfo)
+      // Alle offenen Fenster informieren
+      BrowserWindow.getAllWindows().forEach(w =>
+        w.webContents.send('update-available', updateInfo)
+      )
+    } else {
+      console.log('[FLUX Update] Already up to date.')
+    }
+  } catch (err) {
+    // Netzwerkfehler ignorieren – kein Update-Check = kein Problem
+    console.log('[FLUX Update] Check failed:', err.message)
+  }
+}
+
+function setupUpdateIPC() {
+  // Renderer fragt Update-Status ab (beim Start)
+  ipcMain.handle('update-get-info', () => updateInfo)
+
+  // Renderer öffnet Release-Seite im Standard-Browser
+  ipcMain.on('update-open-release', () => {
+    const { shell } = require('electron')
+    shell.openExternal(updateInfo?.releaseUrl || RELEASES_PAGE)
+  })
 }
 
 // ── FLUX Trust Network ────────────────────────────────────
@@ -231,35 +311,26 @@ function setupFingerprintIPC() {
   )
 }
 
-// ── Netzwerkfilter (Herzstück des Shield) ─────────────────
-function setupNetworkFilter() {
-  session.defaultSession.webRequest.onBeforeRequest((details, callback) => {
-    const url   = details.url
-    const type  = details.resourceType   // 'mainFrame', 'script', 'image' etc.
+// ── Network Transparency IPC ──────────────────────────────
+function setupNetworkTransparencyIPC() {
+  const handlers = networkTransparency.getIpcHandlers()
 
-    // Eigene App-URLs immer erlauben
-    if (url.startsWith('file://') || url.startsWith('chrome-extension://')) {
-      return callback({ cancel: false })
-    }
-
-    // Tracker IMMER blockieren (unabhängig vom Shield)
-    if (isTrackerDomain(url)) {
-      logConnection('blocked-tracker', url, 'Known tracker domain')
-      return callback({ cancel: true })
-    }
-
-    // Im Shield-Modus: Hintergrundanfragen blockieren
-    if (shieldEnabled) {
-      if (isInternalRequest(url)) {
-        logConnection('blocked-bg', url, 'Background/internal request blocked by FLUX Shield')
-        return callback({ cancel: true })
-      }
-    }
-
-    // Erlaubt
-    logConnection('allowed', url, '')
-    callback({ cancel: false })
+  // Register all IPC handlers
+  Object.keys(handlers).forEach(channel => {
+    ipcMain.handle(channel, handlers[channel])
   })
+}
+
+// ── Netzwerkfilter (Herzstück des Shield) ─────────────────
+// Now uses the Network Transparency system for comprehensive logging
+function setupNetworkFilter() {
+  // Initialize the network transparency interception system
+  // It will handle all request logging, classification, and blocking
+  networkTransparency.setupNetworkInterception(shieldEnabled)
+
+  // Note: The old logConnection is still called for backward compatibility
+  // with the existing flux://network page UI
+  // The Network Transparency system provides a much richer dataset
 }
 
 // ── CSP + App starten ─────────────────────────────────────
@@ -280,11 +351,16 @@ app.whenReady().then(() => {
   })
 
   setupNetworkFilter()
+  setupNetworkTransparencyIPC()
   setupShieldIPC()
   setupFingerprintIPC()
   setupEphemeralIPC()
   setupTrustIPC()
+  setupUpdateIPC()
   createWindow()
+
+  // Update-Check nach kurzem Delay starten (App soll erst vollständig laden)
+  setTimeout(checkForUpdates, 3000)
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

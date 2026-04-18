@@ -1,6 +1,6 @@
 # MIT License
 
-Copyright (c) 2025 FLUX Browser
+Copyright (c) 2026 FLUX Browser
 
 ---
 

@@ -1,26 +1,141 @@
 {
   "name": "flux-browser",
-  "version": "1.0.0",
-  "description": "FLUX – Futuristischer Browser gebaut mit Electron",
-  "author": "FLUX Browser",
+  "version": "1.1.1",
+  "description": "FLUX \u2013 Zero Telemetry. Zero Tracking. Full Control.",
+  "author": "FLUX Browser <hello@fluxprivacy.app>",
   "license": "MIT",
   "homepage": "https://fluxprivacy.app/",
   "main": "main.js",
   "scripts": {
-    "start": "electron .",
-    "make": "electron-forge make",
-    "package": "electron-forge package"
+    "start": "npx electron .",
+    "build": "electron-builder build --publish never",
+    "build:win": "electron-builder build --win --publish never",
+    "build:mac": "electron-builder build --mac --publish never",
+    "build:linux": "electron-builder build --linux --publish never",
+    "make": "electron-builder build --publish never"
   },
   "dependencies": {
     "electron-squirrel-startup": "^1.0.1"
   },
   "devDependencies": {
-    "electron": "^29.0.0",
-    "@electron-forge/cli": "^7.4.0",
-    "@electron-forge/maker-squirrel": "^7.4.0",
-    "@electron-forge/maker-dmg": "^7.4.0",
-    "@electron-forge/maker-deb": "^7.4.0",
-    "@electron-forge/maker-rpm": "^7.4.0",
-    "@electron-forge/maker-zip": "^7.4.0"
+    "electron": "29.4.6",
+    "electron-builder": "^24.9.1"
+  },
+  "build": {
+    "appId": "com.fluxbrowser.app",
+    "productName": "FLUX Browser",
+    "copyright": "Copyright \u00a9 2025 FLUX Browser",
+    "directories": {
+      "output": "out/make"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "renderer/**/*",
+      "assets/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "renderer/flux.ico",
+      "artifactName": "FLUX.Browser-${version}-Setup.exe"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "allowElevation": true,
+      "installerIcon": "renderer/flux.ico",
+      "uninstallerIcon": "renderer/flux.ico",
+      "installerHeaderIcon": "renderer/flux.ico",
+      "installerSidebar": "assets/installer/sidebar.bmp",
+      "uninstallerSidebar": "assets/installer/sidebar.bmp",
+      "installerHeader": "assets/installer/header.bmp",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "FLUX Browser",
+      "menuCategory": "FLUX Browser",
+      "license": "LICENSE.md",
+      "warningsAsErrors": false,
+      "include": "assets/installer/installer.nsh",
+      "runAfterFinish": true,
+      "unicode": true
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ],
+      "icon": "renderer/flux.png",
+      "category": "public.app-category.utilities",
+      "artifactName": "FLUX.Browser-${version}-${arch}.dmg"
+    },
+    "dmg": {
+      "title": "FLUX Browser ${version}",
+      "background": "assets/installer/dmg-background.png",
+      "icon": "renderer/flux.png",
+      "iconSize": 80,
+      "contents": [
+        {
+          "x": 180,
+          "y": 170,
+          "type": "file"
+        },
+        {
+          "x": 480,
+          "y": 170,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ],
+      "window": {
+        "width": 660,
+        "height": 400
+      }
+    },
+    "linux": {
+      "target": [
+        "deb",
+        "rpm",
+        "AppImage"
+      ],
+      "icon": "renderer/flux.png",
+      "category": "Network;WebBrowser",
+      "artifactName": "flux-browser-${version}.${ext}"
+    },
+    "deb": {
+      "depends": [
+        "libgtk-3-0",
+        "libnotify4",
+        "libnss3",
+        "libxss1"
+      ],
+      "maintainer": "FLUX Browser <hello@flux-browser.com>"
+    },
+    "extraResources": [
+      {
+        "from": "assets/installer/splash.bmp",
+        "to": "flux-splash.bmp"
+      }
+    ],
+    "forceCodeSigning": false
   }
 }

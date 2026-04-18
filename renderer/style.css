@@ -1317,3 +1317,129 @@ webview.active { display: flex; }  /* Nur aktiver Tab sichtbar */
   transition: background 0.3s, box-shadow 0.3s;
   flex-shrink: 0;
 }
+
+/* ── Update Banner ───────────────────────────────────────── */
+
+/* Update Bar: zwischen Navbar und Webview, immer sichtbar */
+#flux-update-bar {
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 9px 20px;
+  background: linear-gradient(90deg,
+    rgba(255, 106, 0, 0.1) 0%,
+    rgba(155, 61, 255, 0.08) 100%);
+  border-bottom: 1px solid rgba(255, 106, 0, 0.35);
+  animation: banner-fade-in 0.3s ease forwards;
+  flex-shrink: 0;
+}
+
+@keyframes banner-fade-in {
+  from { opacity: 0; max-height: 0; }
+  to   { opacity: 1; max-height: 60px; }
+}
+
+/* Compat: old class still used in new-tab screen context */
+.nt-update-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 20px;
+  margin-bottom: 24px;
+  background: linear-gradient(135deg,
+    rgba(255, 106, 0, 0.08) 0%,
+    rgba(155, 61, 255, 0.08) 100%);
+  border: 1px solid rgba(255, 106, 0, 0.35);
+  border-left: 3px solid var(--accent-3);
+  border-radius: 12px;
+  max-width: 600px;
+  width: 100%;
+  animation: tab-appear 0.3s ease forwards;
+}
+
+.nt-update-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.nt-update-icon {
+  font-size: 22px;
+  flex-shrink: 0;
+}
+
+.nt-update-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.nt-update-text strong {
+  font-size: 13px;
+  font-weight: 700;
+  color: #ffcf8a;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+}
+
+.nt-update-text span {
+  font-size: 11px;
+  color: rgba(255, 200, 140, 0.6);
+}
+
+.nt-update-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.nt-update-btn,
+#flux-update-download {
+  padding: 7px 16px;
+  background: var(--accent-3);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  letter-spacing: 0.3px;
+  font-family: 'Exo 2', sans-serif;
+  transition: opacity 0.15s, box-shadow 0.15s;
+  white-space: nowrap;
+}
+
+.nt-update-btn:hover,
+#flux-update-download:hover {
+  opacity: 0.85;
+  box-shadow: 0 0 14px rgba(255, 106, 0, 0.4);
+}
+
+.nt-update-dismiss,
+#flux-update-dismiss {
+  width: 26px;
+  height: 26px;
+  background: transparent;
+  border: 1px solid rgba(255, 200, 140, 0.2);
+  border-radius: 6px;
+  color: rgba(255, 200, 140, 0.4);
+  font-size: 11px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+  flex-shrink: 0;
+  font-family: sans-serif;
+}
+
+.nt-update-dismiss:hover,
+#flux-update-dismiss:hover {
+  border-color: rgba(255, 200, 140, 0.5);
+  color: rgba(255, 200, 140, 0.8);
+  background: rgba(255, 200, 140, 0.05);
+}

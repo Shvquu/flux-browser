@@ -1,32 +1,9 @@
-# ============================================================
-# .github/workflows/build.yml
-#
-# WIE EIN RELEASE FUNKTIONIERT:
-#
-#   1. Du pushst einen Tag:
-#        git tag v1.0.1
-#        git push origin v1.0.1
-#
-#   2. GitHub startet automatisch diesen Workflow.
-#
-#   3. Alle 3 Plattformen werden parallel gebaut.
-#
-#   4. Jeder Build-Job lädt seine Datei (.exe / .dmg / .deb+.rpm)
-#      DIREKT in den GitHub-Release hoch – kein separater Job,
-#      kein manuelles Klicken, keine Fehlerquelle dazwischen.
-#
-#   5. Fertig. Der Release ist vollständig befüllt.
-#
-# Bei normalem Push auf main: nur bauen, kein Release erstellen.
-# ============================================================
-
 name: Build FLUX Browser
 
 on:
   push:
-    branches: [ main ]
-    tags:
-      - 'v*'
+    branches: [main]
+    tags: ['v*']
   workflow_dispatch:
 
 permissions:
@@ -34,151 +11,118 @@ permissions:
 
 jobs:
 
-  # ────────────────────────────────────────────────────────
-  # JOB 1: Windows → .exe
-  # ────────────────────────────────────────────────────────
+  # ── Windows ───────────────────────────────────────────────
   build-windows:
-    name: Windows (.exe)
     runs-on: windows-latest
-
     steps:
-      - name: Code auschecken
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Node.js einrichten
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
 
-      - name: Abhängigkeiten installieren
+      - name: Install dependencies
         run: npm ci
 
-      - name: App bauen
-        run: npm run make
+      - name: Build Windows installer
+        run: npm run build:win
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Code-Signing (optional – kommentiere ein wenn du ein Zertifikat hast)
+          # CSC_LINK: ${{ secrets.CSC_LINK }}
+          # CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build-Dateien anzeigen
-        run: Get-ChildItem -Recurse out/make
-        shell: pwsh
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: flux-windows
+          path: out/make/*.exe
+          retention-days: 30
 
-      - name: In Release hochladen
+      - name: Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: out/make/**/*.exe
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          files: out/make/*.exe
+          token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Als Artifact speichern
-        uses: actions/upload-artifact@v4
-        with:
-          name: flux-browser-windows
-          path: out/make/**/*.exe
-          retention-days: 30
-
-  # ────────────────────────────────────────────────────────
-  # JOB 2: macOS → .dmg + .zip
-  # ────────────────────────────────────────────────────────
+  # ── macOS ─────────────────────────────────────────────────
   build-macos:
-    name: macOS (.dmg / .zip)
     runs-on: macos-latest
-
     steps:
-      - name: Code auschecken
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Node.js einrichten
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
 
-      - name: Abhängigkeiten installieren
+      - name: Install dependencies
         run: npm ci
 
-      - name: App bauen
-        run: npm run make
+      - name: Build macOS installer
+        run: npm run build:mac
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build-Dateien anzeigen
-        run: find out/make -type f
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: flux-macos
+          path: |
+            out/make/*.dmg
+            out/make/*.zip
+          retention-days: 30
 
-      - name: In Release hochladen
+      - name: Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            out/make/**/*.dmg
-            out/make/**/*.zip
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            out/make/*.dmg
+            out/make/*.zip
+          token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Als Artifact speichern
-        uses: actions/upload-artifact@v4
-        with:
-          name: flux-browser-macos
-          path: |
-            out/make/**/*.dmg
-            out/make/**/*.zip
-          retention-days: 30
-
-  # ────────────────────────────────────────────────────────
-  # JOB 3: Linux → .deb + .rpm
-  # ────────────────────────────────────────────────────────
+  # ── Linux ─────────────────────────────────────────────────
   build-linux:
-    name: Linux (.deb / .rpm)
     runs-on: ubuntu-latest
-
     steps:
-      - name: Code auschecken
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Node.js einrichten
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
 
-      - name: System-Bibliotheken installieren
+      - name: Install system dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            libgtk-3-dev \
-            libnotify-dev \
-            libnss3 \
-            libxss1 \
-            libasound2t64 \
-            rpm
+            libgtk-3-dev libnotify-dev libnss3 \
+            libxss1 libasound2t64 rpm fakeroot
 
-      - name: Abhängigkeiten installieren
+      - name: Install dependencies
         run: npm ci
 
-      - name: App bauen
-        run: npm run make
+      - name: Build Linux packages
+        run: npm run build:linux
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build-Dateien anzeigen
-        run: find out/make -type f
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: flux-linux
+          path: |
+            out/make/*.deb
+            out/make/*.rpm
+            out/make/*.AppImage
+          retention-days: 30
 
-      - name: In Release hochladen
+      - name: Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            out/make/**/*.deb
-            out/make/**/*.rpm
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Als Artifact speichern
-        uses: actions/upload-artifact@v4
-        with:
-          name: flux-browser-linux
-          path: |
-            out/make/**/*.deb
-            out/make/**/*.rpm
-          retention-days: 30
+            out/make/*.deb
+            out/make/*.rpm
+            out/make/*.AppImage
+          token: ${{ secrets.GITHUB_TOKEN }}
