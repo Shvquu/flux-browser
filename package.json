@@ -31,6 +31,10 @@
     "files": [
       "main.js",
       "preload.js",
+      "bookmarks.js",
+      "history.js",
+      "settings.js",
+      "downloads.js",
       "renderer/**/*",
       "assets/**/*",
       "package.json"

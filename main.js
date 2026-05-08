@@ -5,6 +5,10 @@
 const { app, BrowserWindow, ipcMain, session } = require('electron')
 const path = require('path')
 const networkTransparency = require('./network-transparency')
+const { setupBookmarksIPC }  = require('./bookmarks')
+const { setupHistoryIPC }    = require('./history')
+const { setupSettingsIPC }   = require('./settings')
+const { setupDownloadsIPC }  = require('./downloads')
 
 // electron-builder / NSIS übernimmt Shortcuts + Registry automatisch
 
@@ -357,6 +361,10 @@ app.whenReady().then(() => {
   setupEphemeralIPC()
   setupTrustIPC()
   setupUpdateIPC()
+  setupBookmarksIPC()
+  setupHistoryIPC()
+  setupSettingsIPC()
+  setupDownloadsIPC()
   createWindow()
 
   // Update-Check nach kurzem Delay starten (App soll erst vollständig laden)

@@ -87,6 +87,29 @@ const CONFIG = {
   USER_AGENT:  navigator.userAgent,
 }
 
+// Load persisted settings into CONFIG at startup
+;(async () => {
+  try {
+    const settings = await window.settingsAPI.getAll()
+    if (settings.homePage) CONFIG.HOME_URL = settings.homePage
+    // Load search engine URL template
+    const engines = await window.settingsAPI.getSearchEngines()
+    CONFIG._searchTemplate = engines[settings.searchEngine] || engines.google
+  } catch {}
+})()
+
+// Listen for settings changes
+window.settingsAPI?.onUpdated(async (key, value) => {
+  if (key === 'homePage' && value) CONFIG.HOME_URL = value
+  if (key === 'searchEngine' || key === null) {
+    try {
+      const engines = await window.settingsAPI.getSearchEngines()
+      const settings = await window.settingsAPI.getAll()
+      CONFIG._searchTemplate = engines[settings.searchEngine] || engines.google
+    } catch {}
+  }
+})
+
 // ── Hilfsfunktionen ───────────────────────────────────────
 
 /**
@@ -104,6 +127,10 @@ function parseInput(input) {
   if (input === 'flux://network-transparency') return 'flux://network-transparency'
   if (input === 'flux://privacy')  return 'flux://privacy'
   if (input === 'flux://trust')    return 'flux://trust'
+  if (input === 'flux://bookmarks')  return 'flux://bookmarks'
+  if (input === 'flux://history')    return 'flux://history'
+  if (input === 'flux://settings')   return 'flux://settings'
+  if (input === 'flux://downloads')  return 'flux://downloads'
 
   // Gültige URL mit Protokoll? → direkt verwenden
   try {
@@ -116,8 +143,12 @@ function parseInput(input) {
     return 'https://' + input
   }
 
-  // Alles andere → Google-Suche
-  return `https://www.google.com/search?q=${encodeURIComponent(input)}`
+  // Alles andere → Search engine (uses settings-based engine)
+  // Async getSearchUrl not used here to keep parseInput synchronous;
+  // the renderer fetches the search URL template at startup instead.
+  return CONFIG._searchTemplate
+    ? CONFIG._searchTemplate.replace('%s', encodeURIComponent(input))
+    : `https://www.google.com/search?q=${encodeURIComponent(input)}`
 }
 
 /**
@@ -436,7 +467,7 @@ function activateTab(id) {
     prevTab.webview.classList.remove('active')
     prevTab.newTabScreen?.classList.add('hidden')
     // ALLE internen Seiten des alten Tabs verstecken
-    ;['flux-network', 'flux-privacy', 'flux-trust', 'network-transparency'].forEach(prefix => {
+    INTERNAL_PAGE_PREFIXES.forEach(prefix => {
       const el = document.getElementById(`${prefix}-${prevTab.id}`)
       if (el) el.style.display = 'none'
     })
@@ -450,29 +481,36 @@ function activateTab(id) {
 
   // ALLE internen Seiten des neuen Tabs erst verstecken,
   // dann nur die richtige einblenden (verhindert Überlappungen)
-  ;['flux-network', 'flux-privacy', 'flux-trust', 'network-transparency'].forEach(prefix => {
+  INTERNAL_PAGE_PREFIXES.forEach(prefix => {
     const el = document.getElementById(`${prefix}-${tab.id}`)
     if (el) el.style.display = 'none'
   })
   tab.webview.classList.remove('active')
 
-  if (tab.isNetworkPage) {
-    const el = document.getElementById(`flux-network-${tab.id}`)
-    if (el) { el.style.display = 'block' } else { renderNetworkPage(tab.id) }
-    dom.urlInput.value = 'flux://network'
-  } else if (tab.isNetworkTransparencyPage) {
-    const el = document.getElementById(`network-transparency-${tab.id}`)
-    if (el) { el.style.display = 'block' } else { renderNetworkTransparencyPage(tab.id) }
-    dom.urlInput.value = 'flux://network-transparency'
-  } else if (tab.isPrivacyPage) {
-    const el = document.getElementById(`flux-privacy-${tab.id}`)
-    if (el) { el.style.display = 'block' } else { renderPrivacyPage(tab.id) }
-    dom.urlInput.value = 'flux://privacy'
-  } else if (tab.isTrustPage) {
-    const el = document.getElementById(`flux-trust-${tab.id}`)
-    if (el) { el.style.display = 'block' } else { renderTrustPage(tab.id) }
-    dom.urlInput.value = 'flux://trust'
-  } else {
+  // Internal page routing map
+  const internalPages = [
+    { flag: 'isNetworkPage',              prefix: 'flux-network',           url: 'flux://network',              render: renderNetworkPage },
+    { flag: 'isNetworkTransparencyPage',  prefix: 'network-transparency',   url: 'flux://network-transparency', render: renderNetworkTransparencyPage },
+    { flag: 'isPrivacyPage',              prefix: 'flux-privacy',           url: 'flux://privacy',              render: renderPrivacyPage },
+    { flag: 'isTrustPage',               prefix: 'flux-trust',             url: 'flux://trust',                render: renderTrustPage },
+    { flag: 'isBookmarksPage',            prefix: 'flux-bookmarks',         url: 'flux://bookmarks',            render: renderBookmarksPage },
+    { flag: 'isHistoryPage',              prefix: 'flux-history',           url: 'flux://history',              render: renderHistoryPage },
+    { flag: 'isSettingsPage',             prefix: 'flux-settings',          url: 'flux://settings',             render: renderSettingsPage },
+    { flag: 'isDownloadsPage',            prefix: 'flux-downloads',         url: 'flux://downloads',            render: renderDownloadsPage },
+  ]
+
+  let handled = false
+  for (const page of internalPages) {
+    if (tab[page.flag]) {
+      const el = document.getElementById(`${page.prefix}-${tab.id}`)
+      if (el) { el.style.display = 'block' } else { page.render(tab.id) }
+      dom.urlInput.value = page.url
+      handled = true
+      break
+    }
+  }
+
+  if (!handled) {
     // Normaler Tab: Webview + ggf. New-Tab-Screen einblenden
     tab.webview.classList.add('active')
     tab.newTabScreen?.classList.remove('hidden')
@@ -495,10 +533,9 @@ function closeTab(id) {
   tab.tabEl.remove()
   tab.webview.remove()
   tab.newTabScreen?.remove()
-  document.getElementById(`flux-network-${tab.id}`)?.remove()
-  document.getElementById(`flux-privacy-${tab.id}`)?.remove()
-  document.getElementById(`flux-trust-${tab.id}`)?.remove()
-  document.getElementById(`network-transparency-${tab.id}`)?.remove()
+  INTERNAL_PAGE_PREFIXES.forEach(prefix => {
+    document.getElementById(`${prefix}-${tab.id}`)?.remove()
+  })
 
   // Ephemeral: Partition vollständig löschen (Cookies, Cache, Storage)
   if (tab.isEphemeral && tab.partitionName) {
@@ -587,6 +624,11 @@ function registerWebviewEvents(tab) {
         updateTrustBadge(null, null)
       }
     }
+    // Record in browsing history (skip ephemeral tabs)
+    if (!tab.isEphemeral && e.url !== 'about:blank' && !e.url.startsWith('flux://')) {
+      const title = tabEl.querySelector('.tab-title')?.textContent || e.url
+      window.historyAPI.add({ url: e.url, title }).catch(() => {})
+    }
   })
 
   // ── In-Page Navigation (Hash, History API) ──
@@ -670,6 +712,34 @@ function defaultFaviconSVG() {
   </svg>`
 }
 
+// ── NAVIGATION HELPERS ────────────────────────────────────
+
+const INTERNAL_PAGE_PREFIXES = [
+  'flux-network', 'flux-privacy', 'flux-trust', 'network-transparency',
+  'flux-bookmarks', 'flux-history', 'flux-settings', 'flux-downloads',
+]
+
+function clearInternalPages(tab) {
+  tab.isPrivacyPage = false
+  tab.isNetworkPage = false
+  tab.isTrustPage   = false
+  tab.isNetworkTransparencyPage = false
+  tab.isBookmarksPage  = false
+  tab.isHistoryPage    = false
+  tab.isSettingsPage   = false
+  tab.isDownloadsPage  = false
+
+  INTERNAL_PAGE_PREFIXES.forEach(prefix => {
+    const el = document.getElementById(`${prefix}-${tab.id}`)
+    if (el) el.style.display = 'none'
+  })
+}
+
+function setTabTitle(tab, title) {
+  const titleEl = tab.tabEl.querySelector('.tab-title')
+  if (titleEl) titleEl.textContent = title
+}
+
 // ── NAVIGATION ────────────────────────────────────────────
 
 /**
@@ -689,72 +759,94 @@ function navigate(input) {
 
   // flux://trust → Trust Network Seite
   if (url === 'flux://trust') {
-    document.querySelectorAll('.flux-trust-page').forEach(el => el.remove())
-    tab.isTrustPage    = true
-    tab.isPrivacyPage  = false
-    tab.isNetworkPage  = false
+    clearInternalPages(tab)
+    tab.isTrustPage = true
     dom.urlInput.value = 'flux://trust'
     dom.urlInput.blur()
-    const titleEl = tab.tabEl.querySelector('.tab-title')
-    if (titleEl) titleEl.textContent = 'FLUX Trust'
+    setTabTitle(tab, 'FLUX Trust')
     renderTrustPage(tab.id)
     return
   }
 
   // flux://privacy → interne Privacy-Seite
   if (url === 'flux://privacy') {
-    document.querySelectorAll('.flux-privacy-page').forEach(el => el.remove())
+    clearInternalPages(tab)
     tab.isPrivacyPage = true
-    tab.isNetworkPage = false
     dom.urlInput.value = 'flux://privacy'
     dom.urlInput.blur()
-    const titleEl = tab.tabEl.querySelector('.tab-title')
-    if (titleEl) titleEl.textContent = 'FLUX Privacy'
+    setTabTitle(tab, 'FLUX Privacy')
     renderPrivacyPage(tab.id)
     return
   }
 
   // flux://network → interne Shield-Seite anzeigen
   if (url === 'flux://network') {
-    document.querySelectorAll('.flux-network-page').forEach(el => el.remove())
+    clearInternalPages(tab)
     tab.isNetworkPage = true
-    tab.isPrivacyPage = false
-    tab.isNetworkTransparencyPage = false
     dom.urlInput.value = 'flux://network'
     dom.urlInput.blur()
-    const titleEl = tab.tabEl.querySelector('.tab-title')
-    if (titleEl) titleEl.textContent = 'FLUX Network'
+    setTabTitle(tab, 'FLUX Network')
     renderNetworkPage(tab.id)
     return
   }
 
   // flux://network-transparency → Network Transparency Panel
   if (url === 'flux://network-transparency') {
+    clearInternalPages(tab)
     tab.isNetworkTransparencyPage = true
-    tab.isNetworkPage = false
-    tab.isPrivacyPage = false
-    tab.isTrustPage = false
     dom.urlInput.value = 'flux://network-transparency'
     dom.urlInput.blur()
-    const titleEl = tab.tabEl.querySelector('.tab-title')
-    if (titleEl) titleEl.textContent = 'Network Transparency'
+    setTabTitle(tab, 'Network Transparency')
     renderNetworkTransparencyPage(tab.id)
     return
   }
 
+  // flux://bookmarks → Bookmarks page
+  if (url === 'flux://bookmarks') {
+    clearInternalPages(tab)
+    tab.isBookmarksPage = true
+    dom.urlInput.value = 'flux://bookmarks'
+    dom.urlInput.blur()
+    setTabTitle(tab, 'Bookmarks')
+    renderBookmarksPage(tab.id)
+    return
+  }
+
+  // flux://history → History page
+  if (url === 'flux://history') {
+    clearInternalPages(tab)
+    tab.isHistoryPage = true
+    dom.urlInput.value = 'flux://history'
+    dom.urlInput.blur()
+    setTabTitle(tab, 'History')
+    renderHistoryPage(tab.id)
+    return
+  }
+
+  // flux://settings → Settings page
+  if (url === 'flux://settings') {
+    clearInternalPages(tab)
+    tab.isSettingsPage = true
+    dom.urlInput.value = 'flux://settings'
+    dom.urlInput.blur()
+    setTabTitle(tab, 'Settings')
+    renderSettingsPage(tab.id)
+    return
+  }
+
+  // flux://downloads → Downloads page
+  if (url === 'flux://downloads') {
+    clearInternalPages(tab)
+    tab.isDownloadsPage = true
+    dom.urlInput.value = 'flux://downloads'
+    dom.urlInput.blur()
+    setTabTitle(tab, 'Downloads')
+    renderDownloadsPage(tab.id)
+    return
+  }
+
   // Immer: interne Seiten wegräumen + Webview sichtbar machen
-  tab.isPrivacyPage = false
-  tab.isNetworkPage = false
-  tab.isTrustPage   = false
-  tab.isNetworkTransparencyPage = false
-  const privPage  = document.getElementById(`flux-privacy-${tab.id}`)
-  const netPage   = document.getElementById(`flux-network-${tab.id}`)
-  const trustPage = document.getElementById(`flux-trust-${tab.id}`)
-  const netTransPage = document.getElementById(`network-transparency-${tab.id}`)
-  if (privPage)  privPage.style.display  = 'none'
-  if (netPage)   netPage.style.display   = 'none'
-  if (trustPage) trustPage.style.display = 'none'
-  if (netTransPage) netTransPage.style.display = 'none'
+  clearInternalPages(tab)
   tab.webview.classList.add('active')
 
   tab.webview.loadURL(url)
@@ -1195,6 +1287,817 @@ function renderPrivacyPage(tabId) {
 
   document.getElementById(`fp-net-link-${tabId}`)
     ?.addEventListener('click', () => navigate('flux://network'))
+}
+
+// ── COMMON INTERNAL PAGE STYLES ────────────────────────────
+const PAGE_COLORS = {
+  bg:      '#060508',
+  surface: 'rgba(10,7,14,0.95)',
+  border:  'rgba(140,60,255,0.18)',
+  accent:  '#5ce0ff',
+  accent2: '#9b3dff',
+  text:    '#e8d8ff',
+  muted:   'rgba(210,180,255,0.55)',
+  green:   '#4ade80',
+  yellow:  '#facc15',
+  red:     '#f87171',
+  orange:  '#ff6a00',
+  SF:      "'Segoe UI',system-ui,-apple-system,sans-serif",
+}
+
+function createInternalPage(id, prefix) {
+  const existing = document.getElementById(`${prefix}-${id}`)
+  if (existing) existing.remove()
+
+  const page = document.createElement('div')
+  page.id = `${prefix}-${id}`
+  Object.assign(page.style, {
+    position:'absolute', inset:'0', background: PAGE_COLORS.bg, overflowY:'auto',
+    padding:'40px', fontFamily: PAGE_COLORS.SF, color: PAGE_COLORS.text,
+    zIndex:'10', boxSizing:'border-box',
+  })
+  return page
+}
+
+function mountInternalPage(tabId, page) {
+  const tab = getTab(tabId)
+  if (!tab) return
+  tab.webview.classList.remove('active')
+  if (tab.newTabScreen) tab.newTabScreen.classList.add('hidden')
+  dom.webviewContainer.appendChild(page)
+}
+
+function pageHeader(title, subtitle, statusText) {
+  const C = PAGE_COLORS
+  return `
+    <div style="display:flex;align-items:flex-start;gap:16px;margin-bottom:32px;
+      padding-bottom:20px;border-bottom:1px solid ${C.border};">
+      <div>
+        <div style="font-size:20px;font-weight:800;color:${C.accent};">${title}</div>
+        <div style="font-size:12px;color:${C.muted};letter-spacing:1px;margin-top:4px;">${subtitle}</div>
+      </div>
+      <div style="margin-left:auto;padding:6px 14px;background:${C.accent2}10;
+        border:1px solid ${C.accent2}33;border-radius:20px;font-size:11px;color:${C.accent2};white-space:nowrap;">
+        <span style="display:inline-block;width:6px;height:6px;background:${C.accent2};
+          border-radius:50%;box-shadow:0 0 6px ${C.accent2};margin-right:6px;"></span>
+        ${statusText}
+      </div>
+    </div>`
+}
+
+function pageFooter() {
+  const C = PAGE_COLORS
+  return `
+    <div style="display:flex;align-items:center;justify-content:space-between;
+      padding-top:20px;border-top:1px solid ${C.border};margin-top:20px;
+      font-size:11px;color:${C.muted};letter-spacing:0.5px;">
+      <span>FLUX Browser — Zero Telemetry · Zero Tracking · Full Control</span>
+    </div>`
+}
+
+// ── flux://bookmarks ──────────────────────────────────────
+
+function renderBookmarksPage(tabId) {
+  const C = PAGE_COLORS
+  const page = createInternalPage(tabId, 'flux-bookmarks')
+
+  page.innerHTML = `
+    ${pageHeader('Bookmarks', 'flux://bookmarks · Local Bookmark Manager', 'Stored locally · Never synced')}
+
+    <!-- Toolbar -->
+    <div style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;align-items:center;">
+      <input id="bm-search-${tabId}" type="text" placeholder="Search bookmarks..."
+        style="flex:1;min-width:200px;padding:8px 14px;background:rgba(12,8,20,0.7);
+        border:1px solid ${C.border};border-radius:8px;color:${C.text};font-size:12px;outline:none;" />
+      <button id="bm-add-folder-${tabId}" style="padding:8px 16px;background:${C.accent2}22;
+        border:1px solid ${C.accent2}44;border-radius:8px;color:${C.accent2};font-size:11px;
+        font-weight:600;cursor:pointer;">+ New Folder</button>
+      <button id="bm-export-${tabId}" style="padding:8px 16px;background:${C.accent}22;
+        border:1px solid ${C.accent}44;border-radius:8px;color:${C.accent};font-size:11px;
+        font-weight:600;cursor:pointer;">Export</button>
+      <button id="bm-import-${tabId}" style="padding:8px 16px;background:${C.green}22;
+        border:1px solid ${C.green}44;border-radius:8px;color:${C.green};font-size:11px;
+        font-weight:600;cursor:pointer;">Import</button>
+      <input id="bm-import-file-${tabId}" type="file" accept=".json" style="display:none;" />
+    </div>
+
+    <!-- Bookmark Tree -->
+    <div id="bm-tree-${tabId}" style="min-height:200px;">
+      <div style="text-align:center;padding:40px 0;color:${C.muted};font-size:13px;">Loading bookmarks...</div>
+    </div>
+
+    ${pageFooter()}
+  `
+
+  mountInternalPage(tabId, page)
+  setupBookmarksPageLogic(tabId)
+}
+
+async function setupBookmarksPageLogic(tabId) {
+  const C = PAGE_COLORS
+
+  async function loadTree(searchQuery = '') {
+    const container = document.getElementById(`bm-tree-${tabId}`)
+    if (!container) return
+
+    let items
+    if (searchQuery) {
+      items = await window.bookmarksAPI.search(searchQuery)
+    } else {
+      items = await window.bookmarksAPI.getTree()
+    }
+
+    if (!items || items.length === 0) {
+      container.innerHTML = `<div style="text-align:center;padding:60px 0;color:${C.muted};font-size:13px;">
+        ${searchQuery ? 'No bookmarks match your search.' : 'No bookmarks yet. Visit a page and click the bookmark button to save it.'}
+      </div>`
+      return
+    }
+
+    container.innerHTML = renderBookmarkItems(items, 0)
+    attachBookmarkEvents(tabId, container)
+  }
+
+  function renderBookmarkItems(items, depth) {
+    return items.map(item => {
+      const indent = depth * 20
+      if (item.type === 'folder') {
+        const childrenHTML = item.children && item.children.length > 0
+          ? renderBookmarkItems(item.children, depth + 1) : ''
+        return `
+          <div style="margin-left:${indent}px;margin-bottom:2px;">
+            <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;
+              background:rgba(12,8,20,0.6);border:1px solid ${C.border};border-left:3px solid ${C.accent2};
+              border-radius:8px;margin-bottom:4px;cursor:pointer;" class="bm-folder" data-id="${item.id}">
+              <span style="font-size:14px;">&#128193;</span>
+              <span style="font-size:13px;font-weight:600;color:${C.text};flex:1;">${escapeHtml(item.title)}</span>
+              <button class="bm-delete" data-id="${item.id}" style="background:none;border:none;
+                color:${C.red};cursor:pointer;font-size:11px;opacity:0.6;padding:2px 6px;"
+                title="Delete folder">&#10005;</button>
+            </div>
+            <div class="bm-folder-children">${childrenHTML}</div>
+          </div>`
+      }
+      return `
+        <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;margin-left:${indent}px;
+          background:rgba(12,8,20,0.4);border:1px solid ${C.border};border-radius:8px;margin-bottom:3px;
+          cursor:pointer;transition:background 0.15s;" class="bm-item"
+          onmouseenter="this.style.background='rgba(140,60,255,0.08)'"
+          onmouseleave="this.style.background='rgba(12,8,20,0.4)'"
+          data-id="${item.id}" data-url="${escapeHtml(item.url || '')}">
+          <span style="font-size:12px;opacity:0.5;">&#9733;</span>
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:12px;font-weight:600;color:${C.text};white-space:nowrap;overflow:hidden;
+              text-overflow:ellipsis;">${escapeHtml(item.title)}</div>
+            <div style="font-size:10px;color:${C.muted};white-space:nowrap;overflow:hidden;
+              text-overflow:ellipsis;font-family:monospace;">${escapeHtml(item.url || '')}</div>
+          </div>
+          <button class="bm-delete" data-id="${item.id}" style="background:none;border:none;
+            color:${C.red};cursor:pointer;font-size:11px;opacity:0.6;padding:2px 6px;"
+            title="Delete bookmark">&#10005;</button>
+        </div>`
+    }).join('')
+  }
+
+  function attachBookmarkEvents(tabId, container) {
+    // Click bookmark to navigate
+    container.querySelectorAll('.bm-item').forEach(el => {
+      el.addEventListener('click', (e) => {
+        if (e.target.closest('.bm-delete')) return
+        const url = el.dataset.url
+        if (url) navigate(url)
+      })
+    })
+
+    // Delete bookmark/folder
+    container.querySelectorAll('.bm-delete').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation()
+        await window.bookmarksAPI.remove(btn.dataset.id)
+        loadTree(document.getElementById(`bm-search-${tabId}`)?.value || '')
+      })
+    })
+  }
+
+  // Search
+  const searchInput = document.getElementById(`bm-search-${tabId}`)
+  let searchTimeout
+  searchInput?.addEventListener('input', () => {
+    clearTimeout(searchTimeout)
+    searchTimeout = setTimeout(() => loadTree(searchInput.value), 200)
+  })
+
+  // Add folder
+  document.getElementById(`bm-add-folder-${tabId}`)?.addEventListener('click', async () => {
+    const title = prompt('Folder name:')
+    if (title) {
+      await window.bookmarksAPI.addFolder({ title })
+      loadTree()
+    }
+  })
+
+  // Export
+  document.getElementById(`bm-export-${tabId}`)?.addEventListener('click', async () => {
+    const json = await window.bookmarksAPI.export()
+    const blob = new Blob([json], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'flux-bookmarks.json'
+    a.click()
+    URL.revokeObjectURL(url)
+  })
+
+  // Import
+  const importBtn = document.getElementById(`bm-import-${tabId}`)
+  const importFile = document.getElementById(`bm-import-file-${tabId}`)
+  importBtn?.addEventListener('click', () => importFile?.click())
+  importFile?.addEventListener('change', async (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    const text = await file.text()
+    const result = await window.bookmarksAPI.import(text)
+    if (result.success) {
+      loadTree()
+    } else {
+      alert('Import failed: ' + result.error)
+    }
+  })
+
+  // Live updates
+  window.bookmarksAPI.onUpdated(() => {
+    const container = document.getElementById(`bm-tree-${tabId}`)
+    if (container) loadTree(document.getElementById(`bm-search-${tabId}`)?.value || '')
+  })
+
+  loadTree()
+}
+
+// ── flux://history ────────────────────────────────────────
+
+function renderHistoryPage(tabId) {
+  const C = PAGE_COLORS
+  const page = createInternalPage(tabId, 'flux-history')
+
+  page.innerHTML = `
+    ${pageHeader('Browsing History', 'flux://history · Local History Browser', 'Stored locally · Never transmitted')}
+
+    <!-- Toolbar -->
+    <div style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;align-items:center;">
+      <input id="hist-search-${tabId}" type="text" placeholder="Search history by title or URL..."
+        style="flex:1;min-width:200px;padding:8px 14px;background:rgba(12,8,20,0.7);
+        border:1px solid ${C.border};border-radius:8px;color:${C.text};font-size:12px;outline:none;" />
+      <select id="hist-clear-range-${tabId}" style="padding:8px 12px;background:rgba(12,8,20,0.7);
+        border:1px solid ${C.border};border-radius:8px;color:${C.text};font-size:11px;outline:none;cursor:pointer;">
+        <option value="">Clear...</option>
+        <option value="1h">Last hour</option>
+        <option value="24h">Last 24 hours</option>
+        <option value="7d">Last 7 days</option>
+        <option value="30d">Last 30 days</option>
+        <option value="all">All history</option>
+      </select>
+    </div>
+
+    <!-- Stats -->
+    <div id="hist-stats-${tabId}" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:24px;"></div>
+
+    <!-- History grouped by date -->
+    <div id="hist-list-${tabId}" style="min-height:200px;">
+      <div style="text-align:center;padding:40px 0;color:${C.muted};font-size:13px;">Loading history...</div>
+    </div>
+
+    ${pageFooter()}
+  `
+
+  mountInternalPage(tabId, page)
+  setupHistoryPageLogic(tabId)
+}
+
+async function setupHistoryPageLogic(tabId) {
+  const C = PAGE_COLORS
+
+  async function loadHistory(searchQuery = '') {
+    const container = document.getElementById(`hist-list-${tabId}`)
+    const statsEl   = document.getElementById(`hist-stats-${tabId}`)
+    if (!container) return
+
+    // Load stats
+    const stats = await window.historyAPI.getStats()
+    if (statsEl) {
+      statsEl.innerHTML = `
+        <div style="padding:16px;background:rgba(12,8,20,0.7);border:1px solid ${C.border};
+          border-left:3px solid ${C.accent2};border-radius:10px;text-align:center;">
+          <div style="font-size:28px;font-weight:800;color:${C.accent2};margin-bottom:4px;">${stats.totalEntries}</div>
+          <div style="font-size:11px;color:${C.muted};text-transform:uppercase;letter-spacing:1px;">Pages Visited</div>
+        </div>
+        <div style="padding:16px;background:rgba(12,8,20,0.7);border:1px solid ${C.border};
+          border-left:3px solid ${C.accent};border-radius:10px;text-align:center;">
+          <div style="font-size:28px;font-weight:800;color:${C.accent};margin-bottom:4px;">${stats.uniqueDomains}</div>
+          <div style="font-size:11px;color:${C.muted};text-transform:uppercase;letter-spacing:1px;">Unique Domains</div>
+        </div>
+        <div style="padding:16px;background:rgba(12,8,20,0.7);border:1px solid ${C.border};
+          border-left:3px solid ${C.green};border-radius:10px;text-align:center;">
+          <div style="font-size:28px;font-weight:800;color:${C.green};margin-bottom:4px;">&#8734;</div>
+          <div style="font-size:11px;color:${C.muted};text-transform:uppercase;letter-spacing:1px;">Local Only</div>
+        </div>`
+    }
+
+    let html = ''
+    if (searchQuery) {
+      const results = await window.historyAPI.search(searchQuery)
+      if (results.length === 0) {
+        container.innerHTML = `<div style="text-align:center;padding:60px 0;color:${C.muted};font-size:13px;">
+          No results for "${escapeHtml(searchQuery)}"</div>`
+        return
+      }
+      html = results.map(e => historyEntryHTML(e)).join('')
+    } else {
+      const groups = await window.historyAPI.getGrouped(500)
+      if (!groups || groups.length === 0) {
+        container.innerHTML = `<div style="text-align:center;padding:60px 0;color:${C.muted};font-size:13px;">
+          No browsing history yet.</div>`
+        return
+      }
+      html = groups.map(group => `
+        <div style="margin-bottom:20px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+            <div style="font-size:11px;font-weight:700;letter-spacing:2px;color:${C.accent2};
+              text-transform:uppercase;">${escapeHtml(group.label)} (${group.entries.length})</div>
+            <button class="hist-clear-date" data-date="${group.date}" style="font-size:10px;padding:3px 10px;
+              background:${C.red}18;border:1px solid ${C.red}33;border-radius:6px;color:${C.red};
+              cursor:pointer;">Clear day</button>
+          </div>
+          ${group.entries.map(e => historyEntryHTML(e)).join('')}
+        </div>`
+      ).join('')
+    }
+
+    container.innerHTML = html
+    attachHistoryEvents(tabId, container)
+  }
+
+  function historyEntryHTML(entry) {
+    const time = new Date(entry.visitedAt).toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit' })
+    return `
+      <div style="display:flex;align-items:center;gap:12px;padding:10px 14px;
+        background:rgba(12,8,20,0.4);border:1px solid ${C.border};border-radius:8px;
+        margin-bottom:3px;cursor:pointer;transition:background 0.15s;"
+        class="hist-entry" data-url="${escapeHtml(entry.url)}" data-id="${entry.id}"
+        onmouseenter="this.style.background='rgba(140,60,255,0.08)'"
+        onmouseleave="this.style.background='rgba(12,8,20,0.4)'">
+        <span style="font-size:10px;color:${C.muted};min-width:55px;font-family:monospace;">${time}</span>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:12px;font-weight:600;color:${C.text};white-space:nowrap;overflow:hidden;
+            text-overflow:ellipsis;">${escapeHtml(entry.title)}</div>
+          <div style="font-size:10px;color:${C.muted};white-space:nowrap;overflow:hidden;
+            text-overflow:ellipsis;font-family:monospace;">${escapeHtml(entry.url)}</div>
+        </div>
+        <button class="hist-delete" data-id="${entry.id}" style="background:none;border:none;
+          color:${C.red};cursor:pointer;font-size:11px;opacity:0.6;padding:2px 6px;"
+          title="Remove entry">&#10005;</button>
+      </div>`
+  }
+
+  function attachHistoryEvents(tabId, container) {
+    container.querySelectorAll('.hist-entry').forEach(el => {
+      el.addEventListener('click', (e) => {
+        if (e.target.closest('.hist-delete')) return
+        navigate(el.dataset.url)
+      })
+    })
+
+    container.querySelectorAll('.hist-delete').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation()
+        await window.historyAPI.remove(btn.dataset.id)
+        loadHistory(document.getElementById(`hist-search-${tabId}`)?.value || '')
+      })
+    })
+
+    container.querySelectorAll('.hist-clear-date').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        await window.historyAPI.clearByDate(btn.dataset.date)
+        loadHistory(document.getElementById(`hist-search-${tabId}`)?.value || '')
+      })
+    })
+  }
+
+  // Search
+  const searchInput = document.getElementById(`hist-search-${tabId}`)
+  let searchTimeout
+  searchInput?.addEventListener('input', () => {
+    clearTimeout(searchTimeout)
+    searchTimeout = setTimeout(() => loadHistory(searchInput.value), 200)
+  })
+
+  // Clear range
+  document.getElementById(`hist-clear-range-${tabId}`)?.addEventListener('change', async (e) => {
+    const val = e.target.value
+    if (!val) return
+    e.target.value = ''
+
+    if (val === 'all') {
+      if (confirm('Clear all browsing history?')) {
+        await window.historyAPI.clearAll()
+        loadHistory()
+      }
+      return
+    }
+
+    const ranges = { '1h': 3600000, '24h': 86400000, '7d': 604800000, '30d': 2592000000 }
+    const ms = ranges[val]
+    if (ms) {
+      await window.historyAPI.clearOlderThan(Date.now() - ms)
+      loadHistory()
+    }
+  })
+
+  // Live updates
+  window.historyAPI.onUpdated(() => {
+    const container = document.getElementById(`hist-list-${tabId}`)
+    if (container) loadHistory(document.getElementById(`hist-search-${tabId}`)?.value || '')
+  })
+
+  loadHistory()
+}
+
+// ── flux://settings ───────────────────────────────────────
+
+function renderSettingsPage(tabId) {
+  const C = PAGE_COLORS
+  const page = createInternalPage(tabId, 'flux-settings')
+
+  page.innerHTML = `
+    ${pageHeader('Settings', 'flux://settings · Browser Preferences', 'Stored locally · Fully customizable')}
+
+    <div id="settings-content-${tabId}" style="min-height:200px;">
+      <div style="text-align:center;padding:40px 0;color:${C.muted};font-size:13px;">Loading settings...</div>
+    </div>
+
+    ${pageFooter()}
+  `
+
+  mountInternalPage(tabId, page)
+  setupSettingsPageLogic(tabId)
+}
+
+async function setupSettingsPageLogic(tabId) {
+  const C = PAGE_COLORS
+  const container = document.getElementById(`settings-content-${tabId}`)
+  if (!container) return
+
+  const settings = await window.settingsAPI.getAll()
+  const defaults = await window.settingsAPI.getDefaults()
+  const engines  = await window.settingsAPI.getSearchEngines()
+
+  function settingRow(label, description, inputHTML) {
+    return `
+      <div style="display:flex;align-items:center;justify-content:space-between;
+        padding:14px 18px;background:rgba(12,8,20,0.6);border:1px solid ${C.border};
+        border-radius:10px;margin-bottom:6px;">
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:13px;font-weight:600;color:${C.text};">${label}</div>
+          <div style="font-size:11px;color:${C.muted};margin-top:2px;">${description}</div>
+        </div>
+        <div style="flex-shrink:0;margin-left:20px;">${inputHTML}</div>
+      </div>`
+  }
+
+  function selectInput(id, value, options) {
+    const opts = options.map(o =>
+      `<option value="${o.value}" ${o.value === value ? 'selected' : ''}>${o.label}</option>`
+    ).join('')
+    return `<select id="${id}" style="padding:6px 12px;background:rgba(12,8,20,0.7);
+      border:1px solid ${C.border};border-radius:6px;color:${C.text};font-size:12px;
+      outline:none;cursor:pointer;min-width:140px;">${opts}</select>`
+  }
+
+  function textInput(id, value, placeholder = '') {
+    return `<input id="${id}" type="text" value="${escapeHtml(value || '')}" placeholder="${placeholder}"
+      style="padding:6px 12px;background:rgba(12,8,20,0.7);border:1px solid ${C.border};
+      border-radius:6px;color:${C.text};font-size:12px;outline:none;min-width:200px;" />`
+  }
+
+  function numberInput(id, value, min, max, step = 1) {
+    return `<input id="${id}" type="number" value="${value}" min="${min}" max="${max}" step="${step}"
+      style="padding:6px 12px;background:rgba(12,8,20,0.7);border:1px solid ${C.border};
+      border-radius:6px;color:${C.text};font-size:12px;outline:none;width:80px;" />`
+  }
+
+  function toggleInput(id, checked) {
+    return `<button id="${id}" data-checked="${checked}" style="width:44px;height:24px;
+      border-radius:12px;border:1px solid ${checked ? C.green + '66' : C.border};cursor:pointer;
+      background:${checked ? C.green + '33' : 'rgba(12,8,20,0.7)'};position:relative;transition:all 0.2s;">
+      <span style="position:absolute;top:2px;${checked ? 'right:2px' : 'left:2px'};width:18px;height:18px;
+        border-radius:50%;background:${checked ? C.green : C.muted};transition:all 0.2s;"></span>
+    </button>`
+  }
+
+  function sectionLabel(text) {
+    return `<div style="font-size:10px;font-weight:700;letter-spacing:3px;color:${C.accent2};
+      text-transform:uppercase;margin:24px 0 12px;">${text}</div>`
+  }
+
+  const engineOpts = Object.keys(engines).map(k => ({
+    value: k, label: k.charAt(0).toUpperCase() + k.slice(1)
+  }))
+
+  container.innerHTML = `
+    ${sectionLabel('Appearance')}
+    ${settingRow('Theme', 'Choose the visual theme for the browser',
+      selectInput(`set-theme-${tabId}`, settings.theme, [
+        { value: 'dark', label: 'Dark' },
+        { value: 'light', label: 'Light' },
+        { value: 'system', label: 'System' },
+      ])
+    )}
+    ${settingRow('Accent Color', 'Primary accent color for UI elements',
+      `<input id="set-accent-${tabId}" type="color" value="${settings.accentColor}"
+        style="width:40px;height:30px;border:1px solid ${C.border};border-radius:6px;
+        background:transparent;cursor:pointer;" />`
+    )}
+
+    ${sectionLabel('Startup')}
+    ${settingRow('Start Page', 'What to show when the browser starts',
+      selectInput(`set-startpage-${tabId}`, settings.startPage, [
+        { value: 'newtab', label: 'New Tab Page' },
+        { value: 'homepage', label: 'Home Page' },
+        { value: 'last-session', label: 'Last Session' },
+      ])
+    )}
+    ${settingRow('Home Page', 'URL used as the home page',
+      textInput(`set-homepage-${tabId}`, settings.homePage, 'https://example.com')
+    )}
+
+    ${sectionLabel('Search')}
+    ${settingRow('Search Engine', 'Default search engine for URL bar queries',
+      selectInput(`set-engine-${tabId}`, settings.searchEngine, engineOpts)
+    )}
+
+    ${sectionLabel('Typography & Zoom')}
+    ${settingRow('Font Family', 'Primary font for browser UI',
+      textInput(`set-font-${tabId}`, settings.fontFamily)
+    )}
+    ${settingRow('Font Size', 'Base font size in pixels',
+      numberInput(`set-fontsize-${tabId}`, settings.fontSize, 10, 24)
+    )}
+    ${settingRow('Zoom Level', 'Page zoom level (50% – 200%)',
+      numberInput(`set-zoom-${tabId}`, settings.zoomLevel, 50, 200, 10)
+    )}
+
+    ${sectionLabel('Privacy')}
+    ${settingRow('Clear Data on Exit', 'Automatically clear browsing data when closing the browser',
+      toggleInput(`set-clearonexit-${tabId}`, settings.clearDataOnExit)
+    )}
+    ${settingRow('Block Third-Party Cookies', 'Block cookies set by third-party domains',
+      toggleInput(`set-block3p-${tabId}`, settings.blockThirdPartyCookies)
+    )}
+
+    ${sectionLabel('Downloads')}
+    ${settingRow('Download Path', 'Default folder for file downloads (empty = system default)',
+      textInput(`set-dlpath-${tabId}`, settings.downloadPath, 'System default')
+    )}
+    ${settingRow('Ask for Download Path', 'Ask where to save each downloaded file',
+      toggleInput(`set-askdl-${tabId}`, settings.askDownloadPath)
+    )}
+
+    ${sectionLabel('Tabs')}
+    ${settingRow('Switch to New Tab', 'Automatically switch to newly opened tabs',
+      toggleInput(`set-switchtab-${tabId}`, settings.switchToNewTab)
+    )}
+
+    <!-- Reset -->
+    <div style="margin-top:30px;text-align:center;">
+      <button id="set-reset-${tabId}" style="padding:10px 24px;background:${C.red}22;
+        border:1px solid ${C.red}44;border-radius:8px;color:${C.red};font-size:12px;
+        font-weight:600;cursor:pointer;">Reset All to Defaults</button>
+    </div>
+  `
+
+  // Wire up change events
+  function bindSelect(id, key) {
+    document.getElementById(id)?.addEventListener('change', (e) => {
+      window.settingsAPI.set(key, e.target.value)
+    })
+  }
+  function bindText(id, key) {
+    let timeout
+    document.getElementById(id)?.addEventListener('input', (e) => {
+      clearTimeout(timeout)
+      timeout = setTimeout(() => window.settingsAPI.set(key, e.target.value), 400)
+    })
+  }
+  function bindNumber(id, key) {
+    document.getElementById(id)?.addEventListener('change', (e) => {
+      window.settingsAPI.set(key, parseInt(e.target.value) || defaults[key])
+    })
+  }
+  function bindToggle(id, key) {
+    document.getElementById(id)?.addEventListener('click', (e) => {
+      const btn = e.currentTarget
+      const current = btn.dataset.checked === 'true'
+      const next = !current
+      window.settingsAPI.set(key, next)
+      btn.dataset.checked = String(next)
+      btn.style.background = next ? C.green + '33' : 'rgba(12,8,20,0.7)'
+      btn.style.borderColor = next ? C.green + '66' : C.border
+      const dot = btn.querySelector('span')
+      dot.style.left = next ? 'auto' : '2px'
+      dot.style.right = next ? '2px' : 'auto'
+      dot.style.background = next ? C.green : C.muted
+    })
+  }
+  function bindColor(id, key) {
+    document.getElementById(id)?.addEventListener('input', (e) => {
+      window.settingsAPI.set(key, e.target.value)
+    })
+  }
+
+  bindSelect(`set-theme-${tabId}`, 'theme')
+  bindColor(`set-accent-${tabId}`, 'accentColor')
+  bindSelect(`set-startpage-${tabId}`, 'startPage')
+  bindText(`set-homepage-${tabId}`, 'homePage')
+  bindSelect(`set-engine-${tabId}`, 'searchEngine')
+  bindText(`set-font-${tabId}`, 'fontFamily')
+  bindNumber(`set-fontsize-${tabId}`, 'fontSize')
+  bindNumber(`set-zoom-${tabId}`, 'zoomLevel')
+  bindToggle(`set-clearonexit-${tabId}`, 'clearDataOnExit')
+  bindToggle(`set-block3p-${tabId}`, 'blockThirdPartyCookies')
+  bindText(`set-dlpath-${tabId}`, 'downloadPath')
+  bindToggle(`set-askdl-${tabId}`, 'askDownloadPath')
+  bindToggle(`set-switchtab-${tabId}`, 'switchToNewTab')
+
+  // Reset all
+  document.getElementById(`set-reset-${tabId}`)?.addEventListener('click', async () => {
+    if (confirm('Reset all settings to defaults?')) {
+      await window.settingsAPI.resetAll()
+      renderSettingsPage(tabId)
+    }
+  })
+}
+
+// ── flux://downloads ──────────────────────────────────────
+
+function renderDownloadsPage(tabId) {
+  const C = PAGE_COLORS
+  const page = createInternalPage(tabId, 'flux-downloads')
+
+  page.innerHTML = `
+    ${pageHeader('Downloads', 'flux://downloads · Download Manager', 'All files stored locally')}
+
+    <!-- Toolbar -->
+    <div style="display:flex;gap:10px;margin-bottom:20px;align-items:center;">
+      <div style="flex:1;"></div>
+      <button id="dl-clear-${tabId}" style="padding:8px 16px;background:${C.red}22;
+        border:1px solid ${C.red}44;border-radius:8px;color:${C.red};font-size:11px;
+        font-weight:600;cursor:pointer;">Clear Completed</button>
+    </div>
+
+    <!-- Download list -->
+    <div id="dl-list-${tabId}" style="min-height:200px;">
+      <div style="text-align:center;padding:40px 0;color:${C.muted};font-size:13px;">Loading downloads...</div>
+    </div>
+
+    ${pageFooter()}
+  `
+
+  mountInternalPage(tabId, page)
+  setupDownloadsPageLogic(tabId)
+}
+
+async function setupDownloadsPageLogic(tabId) {
+  const C = PAGE_COLORS
+
+  async function loadDownloads() {
+    const container = document.getElementById(`dl-list-${tabId}`)
+    if (!container) return
+
+    const items = await window.downloadsAPI.getAll()
+
+    if (!items || items.length === 0) {
+      container.innerHTML = `<div style="text-align:center;padding:60px 0;color:${C.muted};font-size:13px;">
+        No downloads yet.</div>`
+      return
+    }
+
+    container.innerHTML = items.map(dl => {
+      const statusColors = {
+        completed: C.green, in_progress: C.accent, paused: C.yellow,
+        cancelled: C.muted, failed: C.red, interrupted: C.orange,
+      }
+      const statusColor = statusColors[dl.status] || C.muted
+      const statusLabel = dl.status.replace('_', ' ')
+
+      const sizeStr = dl.totalBytes > 0
+        ? formatBytes(dl.totalBytes)
+        : 'Unknown size'
+
+      const progressBar = dl.status === 'in_progress' || dl.status === 'paused'
+        ? `<div style="width:100%;height:4px;background:rgba(255,255,255,0.1);border-radius:2px;margin-top:6px;">
+            <div style="width:${dl.progress}%;height:100%;background:${statusColor};border-radius:2px;
+              transition:width 0.3s;"></div>
+          </div>` : ''
+
+      const time = new Date(dl.startedAt).toLocaleString('en-US', {
+        month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'
+      })
+
+      let actions = ''
+      if (dl.status === 'in_progress') {
+        actions = `<button class="dl-pause" data-id="${dl.id}" style="font-size:10px;padding:3px 8px;
+          background:${C.yellow}22;border:1px solid ${C.yellow}44;border-radius:4px;color:${C.yellow};
+          cursor:pointer;">Pause</button>
+          <button class="dl-cancel" data-id="${dl.id}" style="font-size:10px;padding:3px 8px;
+          background:${C.red}22;border:1px solid ${C.red}44;border-radius:4px;color:${C.red};
+          cursor:pointer;">Cancel</button>`
+      } else if (dl.status === 'paused') {
+        actions = `<button class="dl-resume" data-id="${dl.id}" style="font-size:10px;padding:3px 8px;
+          background:${C.green}22;border:1px solid ${C.green}44;border-radius:4px;color:${C.green};
+          cursor:pointer;">Resume</button>`
+      } else if (dl.status === 'completed') {
+        actions = `<button class="dl-open" data-id="${dl.id}" style="font-size:10px;padding:3px 8px;
+          background:${C.accent}22;border:1px solid ${C.accent}44;border-radius:4px;color:${C.accent};
+          cursor:pointer;">Open</button>
+          <button class="dl-folder" data-id="${dl.id}" style="font-size:10px;padding:3px 8px;
+          background:${C.accent2}22;border:1px solid ${C.accent2}44;border-radius:4px;color:${C.accent2};
+          cursor:pointer;">Show</button>`
+      }
+
+      return `
+        <div style="display:flex;align-items:center;gap:14px;padding:14px 18px;
+          background:rgba(12,8,20,0.5);border:1px solid ${C.border};border-left:3px solid ${statusColor};
+          border-radius:10px;margin-bottom:6px;">
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:13px;font-weight:600;color:${C.text};white-space:nowrap;
+              overflow:hidden;text-overflow:ellipsis;">${escapeHtml(dl.fileName)}</div>
+            <div style="display:flex;gap:12px;margin-top:4px;font-size:10px;color:${C.muted};">
+              <span>${sizeStr}</span>
+              <span style="text-transform:capitalize;color:${statusColor};font-weight:600;">${statusLabel}</span>
+              ${dl.progress > 0 && dl.status === 'in_progress' ? `<span>${dl.progress}%</span>` : ''}
+              <span>${time}</span>
+            </div>
+            ${progressBar}
+          </div>
+          <div style="display:flex;gap:6px;flex-shrink:0;">
+            ${actions}
+            <button class="dl-remove" data-id="${dl.id}" style="font-size:10px;padding:3px 8px;
+              background:none;border:1px solid ${C.border};border-radius:4px;color:${C.muted};
+              cursor:pointer;" title="Remove from history">&#10005;</button>
+          </div>
+        </div>`
+    }).join('')
+
+    // Wire up action buttons
+    container.querySelectorAll('.dl-pause').forEach(btn =>
+      btn.addEventListener('click', () => window.downloadsAPI.pause(btn.dataset.id)))
+    container.querySelectorAll('.dl-resume').forEach(btn =>
+      btn.addEventListener('click', () => window.downloadsAPI.resume(btn.dataset.id)))
+    container.querySelectorAll('.dl-cancel').forEach(btn =>
+      btn.addEventListener('click', () => window.downloadsAPI.cancel(btn.dataset.id)))
+    container.querySelectorAll('.dl-open').forEach(btn =>
+      btn.addEventListener('click', () => window.downloadsAPI.openFile(btn.dataset.id)))
+    container.querySelectorAll('.dl-folder').forEach(btn =>
+      btn.addEventListener('click', () => window.downloadsAPI.showInFolder(btn.dataset.id)))
+    container.querySelectorAll('.dl-remove').forEach(btn =>
+      btn.addEventListener('click', async () => {
+        await window.downloadsAPI.remove(btn.dataset.id)
+        loadDownloads()
+      }))
+  }
+
+  // Clear completed
+  document.getElementById(`dl-clear-${tabId}`)?.addEventListener('click', async () => {
+    await window.downloadsAPI.clearHistory()
+    loadDownloads()
+  })
+
+  // Live updates
+  window.downloadsAPI.onUpdated(() => {
+    const container = document.getElementById(`dl-list-${tabId}`)
+    if (container) loadDownloads()
+  })
+  window.downloadsAPI.onProgress(() => {
+    const container = document.getElementById(`dl-list-${tabId}`)
+    if (container) loadDownloads()
+  })
+
+  loadDownloads()
+}
+
+// ── Shared helpers ────────────────────────────────────────
+
+function escapeHtml(str) {
+  if (!str) return ''
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#039;')
+}
+
+function formatBytes(bytes) {
+  if (bytes === 0) return '0 B'
+  const k = 1024
+  const sizes = ['B', 'KB', 'MB', 'GB']
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i]
 }
 
 // ── FLUX SHIELD UI ────────────────────────────────────────
