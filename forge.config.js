@@ -2,7 +2,7 @@ module.exports = {
   packagerConfig: {
     name: 'FLUX Browser',
     executableName: 'flux-browser',
-    icon: './renderer/flux',
+    icon: './renderer/flux.ico',
   },
   makers: [
   // Windows – .exe Installer

@@ -16,3 +16,11 @@ Thumbs.db
 
 # Build output
 out/
+
+# Miscellaneous
+*.log
+*.tmp
+
+# Ignore any other files you want to exclude from version control
+# For example, if you have a build directory:
+.claude/

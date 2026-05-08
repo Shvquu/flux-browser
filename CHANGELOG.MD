@@ -25,7 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [1.1.0] – 2025-03-14
+## [1.1.0] – 2026-03-14
 
 > **Zero Telemetry. Zero Tracking. Full Control.**
 
@@ -134,7 +134,7 @@ data a website can ever see.
 
 ---
 
-## [1.0.0] – 2025-03-13
+## [1.0.0] – 2026-03-13
 
 First official release of FLUX Browser.
 
