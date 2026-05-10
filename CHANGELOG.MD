@@ -23,7 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [1.2.0] – 2026-05-10
+## [1.1.2] – 2026-05-10
 
 > **Zero Telemetry. Zero Tracking. Full Control.**
 
