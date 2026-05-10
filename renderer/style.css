@@ -1317,129 +1317,340 @@ webview.active { display: flex; }  /* Nur aktiver Tab sichtbar */
   transition: background 0.3s, box-shadow 0.3s;
   flex-shrink: 0;
 }
+/* ── Bookmark Bar ────────────────────────────────────────── */
+#bookmark-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background: var(--bg-chrome);
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+  scrollbar-width: none;
+  flex-shrink: 0;
+  height: 28px;
+  box-sizing: border-box;
+}
+#bookmark-bar::-webkit-scrollbar { display: none; }
 
-/* ── Update Banner ───────────────────────────────────────── */
+.bm-pill {
+  display: flex; align-items: center; gap: 5px;
+  padding: 2px 10px;
+  background: rgba(155,61,255,0.06);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  font-family: 'Exo 2', sans-serif;
+  transition: background 0.15s, color 0.15s;
+}
+.bm-pill:hover { background: rgba(92,224,255,0.08); color: var(--accent); border-color: rgba(92,224,255,0.2); }
+.bm-favicon { width: 12px; height: 12px; border-radius: 2px; }
+.bm-favicon-fallback { font-size: 6px; color: var(--accent-2); }
 
-/* Update Bar: zwischen Navbar und Webview, immer sichtbar */
+/* ── Find Bar ────────────────────────────────────────────── */
+#find-bar {
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(6,5,8,0.97);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 5px 8px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+  animation: tab-appear 0.15s ease;
+}
+
+#find-input {
+  background: rgba(12,8,20,0.8);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  padding: 4px 10px;
+  width: 200px;
+  outline: none;
+}
+#find-input:focus { border-color: var(--accent-2); }
+
+.find-count { font-size: 10px; color: var(--text-secondary); min-width: 50px; text-align: center; font-family: 'JetBrains Mono', monospace; }
+
+.find-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  width: 26px; height: 26px;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.15s;
+}
+.find-btn:hover { background: rgba(92,224,255,0.1); color: var(--accent); border-color: rgba(92,224,255,0.3); }
+.find-toggle-active { background: rgba(155,61,255,0.15) !important; color: var(--accent-2) !important; border-color: rgba(155,61,255,0.4) !important; }
+.find-close { color: var(--text-secondary); }
+.find-close:hover { color: #f87171; border-color: rgba(248,113,113,0.4); }
+
+/* ── Update Bar ──────────────────────────────────────────── */
 #flux-update-bar {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
   padding: 9px 20px;
-  background: linear-gradient(90deg,
-    rgba(255, 106, 0, 0.1) 0%,
-    rgba(155, 61, 255, 0.08) 100%);
-  border-bottom: 1px solid rgba(255, 106, 0, 0.35);
-  animation: banner-fade-in 0.3s ease forwards;
+  background: linear-gradient(90deg, rgba(255,106,0,0.1), rgba(155,61,255,0.08));
+  border-bottom: 1px solid rgba(255,106,0,0.35);
   flex-shrink: 0;
+  font-family: 'Exo 2', sans-serif;
+}
+.nt-update-left { display: flex; align-items: center; gap: 14px; }
+.nt-update-icon { font-size: 20px; }
+.nt-update-text { display: flex; flex-direction: column; gap: 2px; }
+.nt-update-text strong { font-size: 12px; color: #ffcf8a; font-weight: 700; }
+.nt-update-text span   { font-size: 11px; color: rgba(255,200,140,0.6); }
+.nt-update-actions { display: flex; align-items: center; gap: 8px; }
+#flux-update-download {
+  padding: 6px 14px; background: var(--accent-3); color: #fff; border: none; border-radius: 7px;
+  font-size: 12px; font-weight: 700; cursor: pointer; font-family: 'Exo 2', sans-serif;
+}
+#flux-update-download:hover { opacity: 0.85; }
+#flux-update-dismiss {
+  width: 24px; height: 24px; background: transparent; border: 1px solid rgba(255,200,140,0.2);
+  border-radius: 5px; color: rgba(255,200,140,0.4); font-size: 11px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+#flux-update-dismiss:hover { border-color: rgba(255,200,140,0.5); color: rgba(255,200,140,0.8); }
+
+/* ── Download Badge (Navbar) ─────────────────────────────── */
+#btn-downloads { position: relative; }
+.download-badge {
+  position: absolute; top: 2px; right: 2px;
+  min-width: 14px; height: 14px; padding: 0 3px;
+  background: var(--accent-3); color: #fff;
+  font-size: 8px; font-weight: 700; border-radius: 7px;
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'JetBrains Mono', monospace; pointer-events: none;
 }
 
-@keyframes banner-fade-in {
-  from { opacity: 0; max-height: 0; }
-  to   { opacity: 1; max-height: 60px; }
+/* ── Chrome-Style Download Shelf (Bottom Bar) ────────────── */
+#download-tray {
+  position: fixed;
+  bottom: 22px; /* above status bar */
+  left: 0; right: 0;
+  z-index: 9000;
+  background: rgba(8, 5, 14, 0.97);
+  border-top: 1px solid rgba(155, 61, 255, 0.3);
+  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.5);
+  font-family: 'Exo 2', sans-serif;
+  display: flex;
+  flex-direction: column;
+  animation: shelf-slide-up 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
 }
 
-/* Compat: old class still used in new-tab screen context */
-.nt-update-banner {
+@keyframes shelf-slide-up {
+  from { transform: translateY(100%); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+#download-tray-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  padding: 14px 20px;
-  margin-bottom: 24px;
-  background: linear-gradient(135deg,
-    rgba(255, 106, 0, 0.08) 0%,
-    rgba(155, 61, 255, 0.08) 100%);
-  border: 1px solid rgba(255, 106, 0, 0.35);
-  border-left: 3px solid var(--accent-3);
-  border-radius: 12px;
-  max-width: 600px;
-  width: 100%;
-  animation: tab-appear 0.3s ease forwards;
+  padding: 5px 16px 4px;
+  border-bottom: 1px solid rgba(140, 60, 255, 0.12);
+  flex-shrink: 0;
 }
 
-.nt-update-left {
+.dl-shelf-title {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--accent-2);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+.dl-shelf-actions {
   display: flex;
   align-items: center;
-  gap: 14px;
-  min-width: 0;
+  gap: 6px;
 }
 
-.nt-update-icon {
+#download-tray-toggle {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--text-secondary);
+  font-size: 10px;
+  padding: 1px 8px;
+  cursor: pointer;
+  font-family: 'Exo 2', sans-serif;
+  transition: color 0.15s;
+}
+#download-tray-toggle:hover { color: var(--text-primary); }
+
+.dl-shelf-close {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  width: 20px; height: 20px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+.dl-shelf-close:hover { color: #f87171; border-color: rgba(248,113,113,0.4); }
+
+/* Scrollable row of download cards */
+#download-tray-body {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(155,61,255,0.3) transparent;
+}
+
+/* Each download card – fixed width like Chrome */
+.dl-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+  width: 260px;
+  padding: 8px 12px;
+  background: rgba(12, 8, 22, 0.9);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Thin accent line at top of each card matching state */
+.dl-item::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: var(--accent-2);
+}
+.dl-item.done::before  { background: #4ade80; }
+.dl-item.error::before { background: #f87171; }
+
+/* File icon area */
+.dl-icon {
   font-size: 22px;
   flex-shrink: 0;
+  width: 28px;
+  text-align: center;
 }
 
-.nt-update-text {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
+.dl-info {
+  flex: 1;
   min-width: 0;
 }
 
-.nt-update-text strong {
-  font-size: 13px;
-  font-weight: 700;
-  color: #ffcf8a;
-  letter-spacing: 0.3px;
-  white-space: nowrap;
-}
-
-.nt-update-text span {
+.dl-name {
   font-size: 11px;
-  color: rgba(255, 200, 140, 0.6);
-}
-
-.nt-update-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
-}
-
-.nt-update-btn,
-#flux-update-download {
-  padding: 7px 16px;
-  background: var(--accent-3);
-  color: #fff;
-  border: none;
-  border-radius: 8px;
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-  letter-spacing: 0.3px;
-  font-family: 'Exo 2', sans-serif;
-  transition: opacity 0.15s, box-shadow 0.15s;
+  font-weight: 600;
+  color: var(--text-primary);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 3px;
 }
 
-.nt-update-btn:hover,
-#flux-update-download:hover {
-  opacity: 0.85;
-  box-shadow: 0 0 14px rgba(255, 106, 0, 0.4);
+.dl-status {
+  font-size: 10px;
+  color: var(--text-secondary);
+  font-family: 'JetBrains Mono', monospace;
 }
 
-.nt-update-dismiss,
-#flux-update-dismiss {
-  width: 26px;
-  height: 26px;
+/* Progress bar inside card */
+.dl-progress-wrap {
+  height: 2px;
+  background: rgba(140, 60, 255, 0.15);
+  border-radius: 1px;
+  margin-top: 5px;
+  overflow: hidden;
+}
+.dl-progress-bar {
+  height: 2px;
+  background: linear-gradient(90deg, var(--accent-2), var(--accent));
+  border-radius: 1px;
+  transition: width 0.4s ease;
+}
+
+/* Action button (open folder, retry) */
+.dl-action {
   background: transparent;
-  border: 1px solid rgba(255, 200, 140, 0.2);
-  border-radius: 6px;
-  color: rgba(255, 200, 140, 0.4);
-  font-size: 11px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--text-secondary);
+  font-size: 10px;
+  padding: 3px 8px;
   cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.15s;
   flex-shrink: 0;
-  font-family: sans-serif;
+  font-family: 'Exo 2', sans-serif;
+  white-space: nowrap;
+  transition: all 0.15s;
+}
+.dl-action:hover {
+  background: rgba(92, 224, 255, 0.08);
+  color: var(--accent);
+  border-color: rgba(92, 224, 255, 0.3);
+}
+.dl-action.open-folder:hover {
+  background: rgba(74, 222, 128, 0.08);
+  color: #4ade80;
+  border-color: rgba(74, 222, 128, 0.3);
 }
 
-.nt-update-dismiss:hover,
-#flux-update-dismiss:hover {
-  border-color: rgba(255, 200, 140, 0.5);
-  color: rgba(255, 200, 140, 0.8);
-  background: rgba(255, 200, 140, 0.05);
+/* ── Shortcut Overlay (F1) ───────────────────────────────── */
+#shortcut-overlay {
+  position: fixed; inset: 0; z-index: 99999;
+  background: rgba(6,5,8,0.88);
+  backdrop-filter: blur(8px);
+  display: flex; align-items: center; justify-content: center;
+  animation: tab-appear 0.2s ease;
 }
+#shortcut-overlay.hidden { display: none; }
+
+.sc-box {
+  background: rgba(10,7,20,0.98);
+  border: 1px solid rgba(155,61,255,0.35);
+  border-radius: 16px;
+  padding: 32px;
+  min-width: 520px;
+  max-width: 640px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.7), 0 0 40px rgba(155,61,255,0.1);
+}
+.sc-title {
+  font-family: 'Exo 2', sans-serif;
+  font-size: 18px; font-weight: 700;
+  color: var(--accent); margin-bottom: 20px;
+  letter-spacing: 0.5px;
+}
+.sc-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 6px; margin-bottom: 20px; }
+.sc-row { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: rgba(12,8,20,0.7); border: 1px solid var(--border); border-radius: 8px; }
+.sc-key {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px; padding: 2px 8px;
+  background: rgba(92,224,255,0.08);
+  border: 1px solid rgba(92,224,255,0.25);
+  border-radius: 5px; color: var(--accent);
+  white-space: nowrap;
+}
+.sc-label { font-size: 11px; color: var(--text-secondary); font-family: 'Exo 2', sans-serif; }
+.sc-hint { font-size: 11px; color: var(--text-secondary); text-align: center; opacity: 0.6; }
+
+/* Settings Toggle */
+.st-toggle { transition: background 0.2s; }
