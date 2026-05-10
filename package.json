@@ -1,16 +1,19 @@
 {
   "name": "flux-browser",
   "version": "1.1.1",
-  "description": "FLUX – Zero Telemetry. Zero Tracking. Full Control.",
-  "author": "FLUX Browser",
+  "description": "FLUX \u2013 Zero Telemetry. Zero Tracking. Full Control.",
+  "author": {
+    "name": "FLUX Browser",
+    "email": "hello@fluxbrowser.app"
+  },
   "license": "MIT",
-  "homepage": "https://github.com/Shvquu/flux-browser",
+  "homepage": "https://fluxprivacy.app/",
   "main": "main.js",
   "scripts": {
-    "start":       "npx electron .",
-    "build":       "electron-builder build --publish never",
-    "build:win":   "electron-builder build --win --publish never",
-    "build:mac":   "electron-builder build --mac --publish never",
+    "start": "npx electron .",
+    "build": "electron-builder build --publish never",
+    "build:win": "electron-builder build --win --publish never",
+    "build:mac": "electron-builder build --mac --publish never",
     "build:linux": "electron-builder build --linux --publish never"
   },
   "dependencies": {
@@ -23,26 +26,29 @@
   "build": {
     "appId": "com.fluxbrowser.app",
     "productName": "FLUX Browser",
-    "copyright": "Copyright © 2025 FLUX Browser",
+    "copyright": "Copyright \u00a9 2026 FLUX Browser",
     "forceCodeSigning": false,
-
     "directories": {
       "output": "out/make"
     },
-
     "files": [
       "main.js",
       "preload.js",
       "renderer/**/*",
       "package.json"
     ],
-
     "win": {
-      "target": [{ "target": "nsis", "arch": ["x64"] }],
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
       "icon": "renderer/flux.ico",
       "artifactName": "FLUX.Browser-${version}-Setup.exe"
     },
-
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
@@ -55,38 +61,64 @@
       "license": "LICENSE.MD",
       "warningsAsErrors": false
     },
-
     "mac": {
       "target": [
-        { "target": "dmg", "arch": ["arm64"] },
-        { "target": "dmg", "arch": ["x64"] }
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64"
+          ]
+        },
+        {
+          "target": "dmg",
+          "arch": [
+            "x64"
+          ]
+        }
       ],
       "icon": "renderer/flux.png",
       "category": "public.app-category.utilities",
       "artifactName": "FLUX.Browser-${version}-${arch}.dmg"
     },
-
     "dmg": {
       "title": "FLUX Browser ${version}",
       "format": "UDZO",
       "icon": "renderer/flux.png",
       "iconSize": 80,
       "contents": [
-        { "x": 180, "y": 170, "type": "file" },
-        { "x": 480, "y": 170, "type": "link", "path": "/Applications" }
+        {
+          "x": 180,
+          "y": 170,
+          "type": "file"
+        },
+        {
+          "x": 480,
+          "y": 170,
+          "type": "link",
+          "path": "/Applications"
+        }
       ],
-      "window": { "width": 660, "height": 400 }
+      "window": {
+        "width": 660,
+        "height": 400
+      }
     },
-
     "linux": {
-      "target": ["deb", "rpm"],
+      "target": [
+        "deb",
+        "rpm"
+      ],
       "icon": "renderer/flux.png",
       "category": "Network;WebBrowser",
       "artifactName": "flux-browser-${version}.${ext}"
     },
-
     "deb": {
-      "depends": ["libgtk-3-0", "libnotify4", "libnss3", "libxss1"]
+      "depends": [
+        "libgtk-3-0",
+        "libnotify4",
+        "libnss3",
+        "libxss1"
+      ]
     }
   }
 }
