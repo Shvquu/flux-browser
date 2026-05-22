@@ -402,36 +402,104 @@ function hideShortcutOverlay() {
 }
 
 // ════════════════════════════════════════════════════════════
-// UPDATE BANNER
+// AUTO-UPDATE BANNER  (Chrome/Brave style)
 // ════════════════════════════════════════════════════════════
-function showUpdateBanner() {
-  if (!update.info || update.dismissed) return
+
+const autoUpdate = {
+  status:    'idle',   // idle|checking|available|downloading|downloaded|error|upToDate
+  progress:  0,
+  version:   null,
+  dismissed: false,
+}
+
+function renderUpdateBanner() {
   const bar = document.getElementById('flux-update-bar')
   if (!bar) return
+
+  const { status, progress, version } = autoUpdate
+
+  // States that should hide the bar
+  if (['idle','checking','upToDate'].includes(status) || autoUpdate.dismissed) {
+    bar.style.display = 'none'
+    return
+  }
+
   bar.style.display = 'flex'
-  bar.innerHTML = `
-    <div class="nt-update-left">
-      <span class="nt-update-icon">🚀</span>
-      <div class="nt-update-text">
-        <strong>FLUX Browser ${update.info.latestVersion} is available</strong>
-        <span>You're on v${update.info.currentVersion} &middot; Click to download</span>
+
+  if (status === 'downloading') {
+    bar.innerHTML = `
+      <div class="nt-update-left">
+        <span class="nt-update-icon">⬇️</span>
+        <div class="nt-update-text">
+          <strong>Downloading FLUX Browser ${version || ''}…</strong>
+          <span>Installing in the background — ${progress}% complete</span>
+        </div>
       </div>
-    </div>
-    <div class="nt-update-actions">
-      <button id="flux-update-download">Download Update</button>
-      <button id="flux-update-dismiss" title="Dismiss">✕</button>
-    </div>`
-  document.getElementById('flux-update-download').addEventListener('click', () => window.updateAPI.openRelease())
-  document.getElementById('flux-update-dismiss').addEventListener('click', () => {
-    update.dismissed = true; bar.style.display = 'none'; bar.innerHTML = ''
+      <div class="nt-update-actions">
+        <div class="flux-update-progress-wrap">
+          <div class="flux-update-progress-bar" style="width:${progress}%"></div>
+        </div>
+        <button id="flux-update-dismiss" title="Hide">✕</button>
+      </div>`
+  } else if (status === 'downloaded') {
+    bar.innerHTML = `
+      <div class="nt-update-left">
+        <span class="nt-update-icon">✅</span>
+        <div class="nt-update-text">
+          <strong>FLUX Browser ${version || ''} is ready to install</strong>
+          <span>Restart to apply the update — takes only a few seconds</span>
+        </div>
+      </div>
+      <div class="nt-update-actions">
+        <button id="flux-update-restart" class="flux-update-btn-primary">Restart to update</button>
+        <button id="flux-update-dismiss" title="Later">✕</button>
+      </div>`
+    document.getElementById('flux-update-restart')?.addEventListener('click', () => {
+      window.autoUpdateAPI.restartNow()
+    })
+  } else if (status === 'available') {
+    // Fallback mode: no installer available, offer GitHub page
+    bar.innerHTML = `
+      <div class="nt-update-left">
+        <span class="nt-update-icon">🚀</span>
+        <div class="nt-update-text">
+          <strong>FLUX Browser ${version || ''} is available</strong>
+          <span>A new version is ready to download</span>
+        </div>
+      </div>
+      <div class="nt-update-actions">
+        <button id="flux-update-download" class="flux-update-btn-primary">Download Update</button>
+        <button id="flux-update-dismiss" title="Dismiss">✕</button>
+      </div>`
+    document.getElementById('flux-update-download')?.addEventListener('click', () => {
+      window.autoUpdateAPI.downloadNow()
+    })
+  } else if (status === 'error') {
+    bar.style.display = 'none'  // errors stay silent
+    return
+  }
+
+  document.getElementById('flux-update-dismiss')?.addEventListener('click', () => {
+    // Only allow full dismiss once downloaded (like Chrome's "X" on restart banner)
+    if (status !== 'downloaded') autoUpdate.dismissed = true
+    bar.style.display = 'none'
   })
 }
 
-async function pollForUpdate() {
-  const info = await window.updateAPI.getInfo()
-  if (info && !update.info) { update.info = info; showUpdateBanner() }
+function applyUpdateState(s) {
+  autoUpdate.status   = s.status   || 'idle'
+  autoUpdate.progress = s.downloadProgress || 0
+  autoUpdate.version  = s.latestVersion || null
+  // Re-show bar after a new download completes even if previously dismissed
+  if (s.status === 'downloaded') autoUpdate.dismissed = false
+  renderUpdateBanner()
 }
-setTimeout(pollForUpdate, 4000)
+
+// Boot: fetch current state + subscribe to live changes
+if (window.autoUpdateAPI) {
+  window.autoUpdateAPI.getState().then(s => { if (s) applyUpdateState(s) }).catch(() => {})
+  window.autoUpdateAPI.onStateChange(s => applyUpdateState(s))
+}
 
 // ════════════════════════════════════════════════════════════
 // INTERNAL PAGE HELPER
@@ -1703,10 +1771,3 @@ window.windowAPI.onWindowState((s) => {
   if (s==='maximized') icon.innerHTML=`<path d="M4 2h6v6H4zM2 4h2v6h6v2H2z" stroke="currentColor" stroke-width="1" fill="none"/>`
   else icon.innerHTML=`<rect x="2" y="2" width="8" height="8" stroke="currentColor" stroke-width="1.5" fill="none"/>`
 })
-
-// Update banner
-async function pollForUpdate2() {
-  const info = await window.updateAPI.getInfo()
-  if (info && !update.info) { update.info = info; showUpdateBanner() }
-}
-setTimeout(pollForUpdate2, 4000)

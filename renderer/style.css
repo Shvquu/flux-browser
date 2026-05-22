@@ -1415,12 +1415,56 @@ webview.active { display: flex; }  /* Nur aktiver Tab sichtbar */
 .nt-update-text { display: flex; flex-direction: column; gap: 2px; }
 .nt-update-text strong { font-size: 12px; color: #ffcf8a; font-weight: 700; }
 .nt-update-text span   { font-size: 11px; color: rgba(255,200,140,0.6); }
-.nt-update-actions { display: flex; align-items: center; gap: 8px; }
+.nt-update-actions {
+  display: flex; align-items: center; gap: 10px; flex-shrink: 0;
+}
+
+/* Progress bar (downloading state) */
+.flux-update-progress-wrap {
+  width: 140px; height: 5px;
+  background: rgba(255,200,140,0.15);
+  border-radius: 3px; overflow: hidden;
+}
+.flux-update-progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent-3), var(--accent));
+  border-radius: 3px;
+  transition: width 0.4s ease;
+  min-width: 4px;
+}
+
+/* Primary action button (Download / Restart) */
+.flux-update-btn-primary {
+  padding: 6px 16px;
+  background: var(--accent-3);
+  color: #fff;
+  border: none;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: 'Exo 2', sans-serif;
+  white-space: nowrap;
+  transition: opacity 0.15s, transform 0.1s;
+}
+.flux-update-btn-primary:hover  { opacity: 0.9; transform: translateY(-1px); }
+.flux-update-btn-primary:active { opacity: 1;   transform: translateY(0); }
+
+/* Legacy selector kept for backward compat */
 #flux-update-download {
   padding: 6px 14px; background: var(--accent-3); color: #fff; border: none; border-radius: 7px;
   font-size: 12px; font-weight: 700; cursor: pointer; font-family: 'Exo 2', sans-serif;
 }
 #flux-update-download:hover { opacity: 0.85; }
+
+#flux-update-restart {
+  animation: update-pulse 2.5s ease-in-out infinite;
+}
+@keyframes update-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(155,61,255,0.4); }
+  50%       { box-shadow: 0 0 0 6px rgba(155,61,255,0); }
+}
+
 #flux-update-dismiss {
   width: 24px; height: 24px; background: transparent; border: 1px solid rgba(255,200,140,0.2);
   border-radius: 5px; color: rgba(255,200,140,0.4); font-size: 11px; cursor: pointer;

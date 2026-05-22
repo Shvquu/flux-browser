@@ -65,12 +65,27 @@ contextBridge.exposeInMainWorld('downloadAPI', {
   openFolder: (savePath) => ipcRenderer.send('download-open-folder', savePath),
 })
 
+// ── Auto-Updater (Chrome/Brave style, v1.5) ─────────────────
+contextBridge.exposeInMainWorld('autoUpdateAPI', {
+  getState:     ()         => ipcRenderer.invoke('auto-update-get-state'),
+  checkNow:     ()         => ipcRenderer.send('auto-update-check-now'),
+  downloadNow:  ()         => ipcRenderer.send('auto-update-download-now'),
+  restartNow:   ()         => ipcRenderer.send('auto-update-restart'),
+  onStateChange:(cb) => {
+    ipcRenderer.removeAllListeners('auto-update-state')
+    ipcRenderer.on('auto-update-state', (_, s) => cb(s))
+  },
+})
+
+// Legacy shim so old renderer code still compiles (redirects to autoUpdateAPI)
 contextBridge.exposeInMainWorld('updateAPI', {
-  getInfo:     () => ipcRenderer.invoke('update-get-info'),
-  openRelease: () => ipcRenderer.send('update-open-release'),
+  getInfo:     () => ipcRenderer.invoke('auto-update-get-state'),
+  openRelease: () => ipcRenderer.send('auto-update-download-now'),
   onAvailable: (cb) => {
-    ipcRenderer.removeAllListeners('update-available')
-    ipcRenderer.on('update-available', (_, info) => cb(info))
+    ipcRenderer.removeAllListeners('auto-update-state')
+    ipcRenderer.on('auto-update-state', (_, s) => {
+      if (s.status === 'available' || s.status === 'downloaded') cb(s)
+    })
   },
 })
 

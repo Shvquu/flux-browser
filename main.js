@@ -10,6 +10,7 @@ if (require('electron-squirrel-startup')) app.quit()
 // ── Modules ────────────────────────────────────────────────
 const { setupAdblockIPC, initAdblock, isBlockedByFilterList } = require('./adblock')
 const { setupSettingsIPC } = require('./settings')
+const { setupAutoUpdater }  = require('./updater')
 
 // ── Privacy Mode v1.5 Settings ──────────────────────────────
 let privacySettings = {
@@ -402,44 +403,7 @@ function setupClearOnExit() {
   })
 }
 
-// ── Update Checker ─────────────────────────────────────────
-const GITHUB_REPO   = 'Shvquu/flux-browser'
-const RELEASES_API  = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`
-const RELEASES_PAGE = `https://github.com/${GITHUB_REPO}/releases/latest`
-let updateInfo = null
-
-function compareVersions(a, b) {
-  const pa = a.replace(/^v/,'').split('.').map(Number)
-  const pb = b.replace(/^v/,'').split('.').map(Number)
-  for (let i = 0; i < 3; i++) {
-    if ((pa[i]||0) > (pb[i]||0)) return 1
-    if ((pa[i]||0) < (pb[i]||0)) return -1
-  }
-  return 0
-}
-
-async function checkForUpdates() {
-  try {
-    const res  = await fetch(RELEASES_API, { headers:{'User-Agent':'FLUX-Browser-UpdateCheck'} })
-    if (!res.ok) return
-    const data          = await res.json()
-    const latestVersion = (data.tag_name||'').replace(/^v/,'')
-    const currentVersion = app.getVersion()
-    if (latestVersion && compareVersions(latestVersion, currentVersion) > 0) {
-      updateInfo = { latestVersion, currentVersion, releaseUrl: data.html_url || RELEASES_PAGE, publishedAt: data.published_at || null }
-      BrowserWindow.getAllWindows().forEach(w =>
-        w.webContents.send('update-available', updateInfo)
-      )
-    }
-  } catch(_) {}
-}
-
-function setupUpdateIPC() {
-  ipcMain.handle('update-get-info', () => updateInfo)
-  ipcMain.on('update-open-release', () => {
-    shell.openExternal(updateInfo?.releaseUrl || RELEASES_PAGE)
-  })
-}
+// ── Auto-Updater handled by updater.js ───────────────────
 
 // ── Start ──────────────────────────────────────────────────
 app.whenReady().then(() => {
@@ -462,7 +426,6 @@ app.whenReady().then(() => {
   setupEphemeralIPC()
   setupTrustIPC()
   setupDownloadManager()
-  setupUpdateIPC()
   setupPrivacyIPC()
   setupCookieIPC()
   setupClearOnExit()
@@ -471,6 +434,7 @@ app.whenReady().then(() => {
   applyDoH()
   initAdblock()   // load cached filter lists; refresh in background if stale
   createWindow()
+  setupAutoUpdater()  // check after window is ready
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

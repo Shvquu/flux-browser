@@ -17,7 +17,8 @@
     "build:linux": "electron-builder build --linux --publish never"
   },
   "dependencies": {
-    "electron-squirrel-startup": "^1.0.1"
+    "electron-squirrel-startup": "^1.0.1",
+    "electron-updater": "^6.3.9"
   },
   "devDependencies": {
     "electron": "29.4.6",
@@ -31,11 +32,20 @@
     "directories": {
       "output": "out/make"
     },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "Shvquu",
+        "repo": "flux-browser",
+        "releaseType": "release"
+      }
+    ],
     "files": [
       "main.js",
       "preload.js",
       "adblock.js",
       "settings.js",
+      "updater.js",
       "bookmarks.js",
       "downloads.js",
       "history.js",
