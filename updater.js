@@ -60,6 +60,7 @@ let euAvailable = false
 try {
   autoUpdater = require('electron-updater').autoUpdater
   euAvailable = true
+  console.log('[Updater] electron-updater loaded' + (app.isPackaged ? '' : ' (dev mode → GitHub API fallback)'))
 } catch (_) {
   console.log('[Updater] electron-updater not found — using GitHub API fallback')
 }
