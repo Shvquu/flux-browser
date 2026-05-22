@@ -1,0 +1,63 @@
+# ============================================================
+# .github/dependabot.yml – Automated Dependency Updates
+# ============================================================
+# Keeps all npm packages and GitHub Actions up to date.
+# PRs are created automatically and merged if CI passes.
+# ============================================================
+
+version: 2
+
+updates:
+
+  # ── npm (Electron + all JS dependencies) ─────────────────
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "daily"
+      time: "06:00"
+      timezone: "Europe/Berlin"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "automated"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+    # Group all non-breaking updates into a single PR
+    groups:
+      electron-core:
+        patterns:
+          - "electron"
+          - "electron-*"
+        update-types:
+          - "minor"
+          - "patch"
+      all-dependencies:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+    # Never auto-bump Electron major versions — those need manual testing
+    ignore:
+      - dependency-name: "electron"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "electron-builder"
+        update-types: ["version-update:semver-major"]
+
+  # ── GitHub Actions (CI/CD workflow steps) ─────────────────
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Europe/Berlin"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "github-actions"
+      - "automated"
+    commit-message:
+      prefix: "chore(ci)"
+      include: "scope"
