@@ -1,0 +1,122 @@
+name: "🐛 Bug Report"
+description: "Report a bug or unexpected behavior in FLUX Browser."
+title: "[Bug]: "
+labels: ["bug", "needs-triage"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug! Please fill out this form as completely as possible.
+        **Do not report security vulnerabilities here** — use the [Security Advisory](../../security/advisories/new) instead.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: "What happened?"
+      description: "A clear and concise description of the bug."
+      placeholder: "When I click on … the browser crashes / behaves unexpectedly …"
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: "Steps to reproduce"
+      description: "How can we reproduce this issue?"
+      placeholder: |
+        1. Open FLUX Browser
+        2. Navigate to '...'
+        3. Click on '...'
+        4. See error
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: "Expected behavior"
+      description: "What did you expect to happen?"
+    validations:
+      required: true
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: "Screenshots / Screen Recording"
+      description: "If applicable, add screenshots or a screen recording to help explain the problem."
+
+  - type: input
+    id: version
+    attributes:
+      label: "FLUX Browser version"
+      description: "Found in the status bar (bottom right) or About page."
+      placeholder: "e.g. 1.5.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: "Operating System"
+      options:
+        - Windows 11
+        - Windows 10
+        - macOS 15 (Sequoia)
+        - macOS 14 (Sonoma)
+        - macOS 13 (Ventura)
+        - Ubuntu / Debian
+        - Fedora / RHEL
+        - Other Linux
+    validations:
+      required: true
+
+  - type: input
+    id: os-version
+    attributes:
+      label: "OS version / build"
+      placeholder: "e.g. Windows 11 23H2, macOS 14.5, Ubuntu 24.04"
+
+  - type: dropdown
+    id: install-type
+    attributes:
+      label: "How did you install FLUX Browser?"
+      options:
+        - Official installer (.exe / .dmg / .deb / .rpm)
+        - Built from source (npm start)
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: console-log
+    attributes:
+      label: "Console / Error log"
+      description: "Open DevTools with Ctrl+Shift+I and paste any relevant errors here."
+      render: shell
+
+  - type: checkboxes
+    id: privacy-features
+    attributes:
+      label: "Active privacy features at time of bug"
+      description: "Check all that were enabled when the bug occurred."
+      options:
+        - label: FLUX Shield
+        - label: Built-in Ad & Tracker Blocker (EasyList/EasyPrivacy)
+        - label: DNS-over-HTTPS
+        - label: HTTPS-Only Mode
+        - label: Block Third-Party Cookies
+        - label: Clear-on-Exit
+        - label: Ephemeral Tab
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: "Before submitting"
+      options:
+        - label: I searched existing issues and this is not a duplicate
+          required: true
+        - label: I am using the latest version of FLUX Browser
+          required: true
+        - label: I can reliably reproduce this issue

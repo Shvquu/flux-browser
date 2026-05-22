@@ -1,0 +1,86 @@
+name: "✨ Feature Request"
+description: "Suggest a new feature or improvement for FLUX Browser."
+title: "[Feature]: "
+labels: ["enhancement", "needs-triage"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Got an idea that makes FLUX Browser more private, faster, or more useful?
+        We'd love to hear it. Please be as specific as possible.
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: "Feature category"
+      options:
+        - 🔒 Privacy & Security
+        - 🛡️ Ad / Tracker Blocking
+        - 🍪 Cookie Management
+        - 🌐 DNS / Network
+        - 🎨 UI / UX
+        - ⚡ Performance
+        - 🗂️ Tab Management
+        - 📥 Downloads
+        - 🔖 Bookmarks / History
+        - ⌨️ Keyboard Shortcuts
+        - 🔧 Developer Tools
+        - 📦 Build / Packaging
+        - 🌍 Internationalization
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: "What problem does this solve?"
+      description: "Describe the problem or gap you're experiencing. Ex: 'I'm always frustrated when…'"
+      placeholder: "Currently there is no way to…"
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: "Describe the solution you'd like"
+      description: "A clear and concise description of what you want to happen."
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: "Alternatives you've considered"
+      description: "Any other solutions or workarounds you've thought of?"
+
+  - type: textarea
+    id: mockup
+    attributes:
+      label: "Mockups / Examples"
+      description: "Screenshots, sketches, or links to similar implementations in other browsers."
+
+  - type: dropdown
+    id: privacy-impact
+    attributes:
+      label: "Privacy impact"
+      description: "Does this feature affect FLUX Browser's Zero-Telemetry / Zero-Tracking promise?"
+      options:
+        - No impact — purely local / UI change
+        - Improves privacy
+        - Neutral — optional feature, off by default
+        - Requires external connection (please explain in description)
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: "Before submitting"
+      options:
+        - label: I searched existing issues and this has not been requested before
+          required: true
+        - label: This feature fits the FLUX Browser philosophy (Zero Telemetry · Zero Tracking · Full Control)
+          required: true
