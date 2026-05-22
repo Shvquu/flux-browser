@@ -7,6 +7,102 @@ const path = require('path')
 
 if (require('electron-squirrel-startup')) app.quit()
 
+// ── Modules ────────────────────────────────────────────────
+const { setupAdblockIPC, initAdblock, isBlockedByFilterList } = require('./adblock')
+const { setupSettingsIPC } = require('./settings')
+
+// ── Privacy Mode v1.5 Settings ──────────────────────────────
+let privacySettings = {
+  httpsOnly:             false,
+  dohEnabled:            false,
+  dohProvider:           'cloudflare',  // 'cloudflare' | 'quad9' | 'google' | 'custom'
+  dohCustomUrl:          '',
+  clearOnExit:           false,
+  clearOnExitData: {
+    cookies:      true,
+    cache:        true,
+    history:      false,
+    localStorage: false,
+  },
+  blockThirdPartyCookies: false,
+}
+
+const DOH_PROVIDERS = {
+  cloudflare: 'https://cloudflare-dns.com/dns-query',
+  quad9:      'https://dns.quad9.net/dns-query',
+  google:     'https://dns.google/dns-query',
+}
+
+function applyDoH() {
+  try {
+    if (privacySettings.dohEnabled) {
+      const url = privacySettings.dohProvider === 'custom'
+        ? privacySettings.dohCustomUrl
+        : (DOH_PROVIDERS[privacySettings.dohProvider] || DOH_PROVIDERS.cloudflare)
+      app.configureHostResolver({ secureDnsMode: 'secure', secureDnsServers: [url] })
+    } else {
+      app.configureHostResolver({ secureDnsMode: 'automatic' })
+    }
+  } catch (e) { console.error('[DoH] configureHostResolver failed:', e.message) }
+}
+
+function setupPrivacyIPC() {
+  ipcMain.handle('privacy-get-settings', () => ({ ...privacySettings }))
+  ipcMain.handle('privacy-get-doh-providers', () => ({ ...DOH_PROVIDERS }))
+  ipcMain.on('privacy-set-settings', (_, incoming) => {
+    const prev = { ...privacySettings }
+    privacySettings = { ...privacySettings, ...incoming }
+    if (incoming.clearOnExitData)
+      privacySettings.clearOnExitData = { ...prev.clearOnExitData, ...incoming.clearOnExitData }
+    // Re-apply DoH if changed
+    if (incoming.dohEnabled !== undefined || incoming.dohProvider !== undefined || incoming.dohCustomUrl !== undefined)
+      applyDoH()
+    BrowserWindow.getAllWindows().forEach(w =>
+      w.webContents.send('privacy-settings-changed', { ...privacySettings })
+    )
+  })
+}
+
+// ── Cookie Manager IPC ─────────────────────────────────────
+function setupCookieIPC() {
+  ipcMain.handle('cookies-get-all', async () => {
+    try { return await session.defaultSession.cookies.get({}) } catch { return [] }
+  })
+  ipcMain.handle('cookies-get-for-domain', async (_, domain) => {
+    try { return await session.defaultSession.cookies.get({ domain }) } catch { return [] }
+  })
+  ipcMain.handle('cookies-remove', async (_, url, name) => {
+    try { await session.defaultSession.cookies.remove(url, name); return true } catch { return false }
+  })
+  ipcMain.handle('cookies-purge-domain', async (_, domain) => {
+    try {
+      const scheme = domain.startsWith('https') ? domain : `https://${domain.replace(/^\./, '')}`
+      const list = await session.defaultSession.cookies.get({ domain })
+      await Promise.all(list.map(c =>
+        session.defaultSession.cookies.remove(scheme, c.name).catch(() => {})
+      ))
+      return true
+    } catch { return false }
+  })
+  ipcMain.handle('cookies-purge-all', async () => {
+    try {
+      await session.defaultSession.clearStorageData({ storages: ['cookies'] })
+      return true
+    } catch { return false }
+  })
+  ipcMain.handle('cookies-get-stats', async () => {
+    try {
+      const all = await session.defaultSession.cookies.get({})
+      const byDomain = {}
+      all.forEach(c => {
+        const d = c.domain || 'unknown'
+        byDomain[d] = (byDomain[d] || 0) + 1
+      })
+      return { total: all.length, byDomain }
+    } catch { return { total: 0, byDomain: {} } }
+  })
+}
+
 // ── FLUX Shield ────────────────────────────────────────────
 let shieldEnabled = true
 
@@ -243,12 +339,66 @@ function setupNetworkFilter() {
       logConnection('blocked-tracker', url, 'Known tracker domain')
       return callback({ cancel: true })
     }
+    if (shieldEnabled && isBlockedByFilterList(url)) {
+      logConnection('blocked-tracker', url, 'EasyList/EasyPrivacy filter')
+      return callback({ cancel: true })
+    }
     if (shieldEnabled && isInternalRequest(url)) {
       logConnection('blocked-bg', url, 'Background/internal request blocked by FLUX Shield')
       return callback({ cancel: true })
     }
+    // ── HTTPS-Only Mode ──────────────────────────────────────
+    if (privacySettings.httpsOnly && url.startsWith('http://')) {
+      const isLocal = url.startsWith('http://localhost') ||
+                      url.startsWith('http://127.') ||
+                      url.startsWith('http://0.0.0.0') ||
+                      url.startsWith('http://[::1]')
+      if (!isLocal) {
+        const httpsUrl = 'https://' + url.slice(7)
+        logConnection('upgraded', url, 'HTTPS-Only Mode: upgraded to HTTPS')
+        return callback({ redirectURL: httpsUrl })
+      }
+    }
     logConnection('allowed', url, '')
     callback({ cancel: false })
+  })
+
+  // ── Third-Party Cookie Blocking ─────────────────────────
+  session.defaultSession.webRequest.onBeforeSendHeaders((details, callback) => {
+    if (privacySettings.blockThirdPartyCookies) {
+      try {
+        const reqHost = new URL(details.url).hostname
+        const referer = details.requestHeaders['Referer'] || details.requestHeaders['referer'] || ''
+        if (referer) {
+          const refHost = new URL(referer).hostname
+          const refBase  = refHost.split('.').slice(-2).join('.')
+          const reqBase  = reqHost.split('.').slice(-2).join('.')
+          if (reqBase !== refBase) {
+            const headers = { ...details.requestHeaders }
+            delete headers['Cookie']
+            delete headers['cookie']
+            return callback({ requestHeaders: headers })
+          }
+        }
+      } catch (_) { /* ignore parse errors */ }
+    }
+    callback({ requestHeaders: details.requestHeaders })
+  })
+}
+
+// ── Clear-on-Exit ──────────────────────────────────────────
+function setupClearOnExit() {
+  app.on('before-quit', async (e) => {
+    if (!privacySettings.clearOnExit) return
+    const data = privacySettings.clearOnExitData || {}
+    const storages = []
+    if (data.cookies)      storages.push('cookies', 'serviceworkers')
+    if (data.cache)        storages.push('cachestorage', 'filesystem', 'shadercache')
+    if (data.localStorage) storages.push('localstorage', 'indexdb', 'websql')
+    try {
+      if (storages.length) await session.defaultSession.clearStorageData({ storages })
+      if (data.cache)      await session.defaultSession.clearCache()
+    } catch (err) { console.error('[ClearOnExit]', err.message) }
   })
 }
 
@@ -313,6 +463,13 @@ app.whenReady().then(() => {
   setupTrustIPC()
   setupDownloadManager()
   setupUpdateIPC()
+  setupPrivacyIPC()
+  setupCookieIPC()
+  setupClearOnExit()
+  setupAdblockIPC()
+  setupSettingsIPC()
+  applyDoH()
+  initAdblock()   // load cached filter lists; refresh in background if stale
   createWindow()
 
   app.on('activate', () => {

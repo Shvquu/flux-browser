@@ -73,3 +73,51 @@ contextBridge.exposeInMainWorld('updateAPI', {
     ipcRenderer.on('update-available', (_, info) => cb(info))
   },
 })
+
+// ── Privacy Mode v1.5 ───────────────────────────────────────
+contextBridge.exposeInMainWorld('privacyAPI', {
+  getSettings:     () => ipcRenderer.invoke('privacy-get-settings'),
+  getDohProviders: () => ipcRenderer.invoke('privacy-get-doh-providers'),
+  setSettings:     (s) => ipcRenderer.send('privacy-set-settings', s),
+  onSettingsChanged: (cb) => {
+    ipcRenderer.removeAllListeners('privacy-settings-changed')
+    ipcRenderer.on('privacy-settings-changed', (_, s) => cb(s))
+  },
+})
+
+contextBridge.exposeInMainWorld('cookieAPI', {
+  getAll:        ()             => ipcRenderer.invoke('cookies-get-all'),
+  getForDomain:  (domain)       => ipcRenderer.invoke('cookies-get-for-domain', domain),
+  remove:        (url, name)    => ipcRenderer.invoke('cookies-remove', url, name),
+  purgeDomain:   (domain)       => ipcRenderer.invoke('cookies-purge-domain', domain),
+  purgeAll:      ()             => ipcRenderer.invoke('cookies-purge-all'),
+  getStats:      ()             => ipcRenderer.invoke('cookies-get-stats'),
+})
+
+// ── Ad-blocker / Filter Lists (v1.5) ────────────────────────
+contextBridge.exposeInMainWorld('adblockAPI', {
+  getStats:    ()              => ipcRenderer.invoke('adblock-get-stats'),
+  updateNow:   ()              => ipcRenderer.send('adblock-update-now'),
+  toggleList:  (id, enabled)   => ipcRenderer.send('adblock-toggle-list', id, enabled),
+  onStatus:    (cb) => {
+    ipcRenderer.removeAllListeners('adblock-status')
+    ipcRenderer.on('adblock-status', (_, stats) => cb(stats))
+  },
+})
+
+// ── Persistent Settings ────────────────────────────────────
+contextBridge.exposeInMainWorld('settingsAPI', {
+  getAll:          ()              => ipcRenderer.invoke('settings-get-all'),
+  get:             (key)           => ipcRenderer.invoke('settings-get', key),
+  set:             (key, value)    => ipcRenderer.invoke('settings-set', key, value),
+  setMultiple:     (changes)       => ipcRenderer.invoke('settings-set-multiple', changes),
+  resetAll:        ()              => ipcRenderer.invoke('settings-reset-all'),
+  resetKey:        (key)           => ipcRenderer.invoke('settings-reset-key', key),
+  getDefaults:     ()              => ipcRenderer.invoke('settings-get-defaults'),
+  getSearchEngines:()              => ipcRenderer.invoke('settings-get-search-engines'),
+  getSearchUrl:    (query)         => ipcRenderer.invoke('settings-get-search-url', query),
+  onUpdated:       (cb) => {
+    ipcRenderer.removeAllListeners('settings-updated')
+    ipcRenderer.on('settings-updated', (_, key, value) => cb(key, value))
+  },
+})

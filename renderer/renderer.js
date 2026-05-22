@@ -194,6 +194,18 @@ function applySettings() {
   CONFIG.HOME_URL = s.startPage === 'flux-default' ? 'https://www.google.com' : (s.startPage || 'https://www.google.com')
   CONFIG.SEARCH_ENGINE = s.searchEngine || 'https://www.google.com/search?q='
   document.body.style.fontSize = (s.uiScale / 100) + 'em'
+  // Sync privacy settings to main process
+  if (window.privacyAPI) {
+    window.privacyAPI.setSettings({
+      httpsOnly:             s.httpsOnly             ?? false,
+      dohEnabled:            s.dohEnabled            ?? false,
+      dohProvider:           s.dohProvider           ?? 'cloudflare',
+      dohCustomUrl:          s.dohCustomUrl          ?? '',
+      clearOnExit:           s.clearOnExit           ?? false,
+      clearOnExitData:       s.clearOnExitData       ?? { cookies: true, cache: true, history: false, localStorage: false },
+      blockThirdPartyCookies: s.blockThirdPartyCookies ?? false,
+    })
+  }
 }
 
 // ════════════════════════════════════════════════════════════
@@ -424,7 +436,7 @@ setTimeout(pollForUpdate, 4000)
 // ════════════════════════════════════════════════════════════
 // INTERNAL PAGE HELPER
 // ════════════════════════════════════════════════════════════
-const INTERNAL_PREFIXES = ['flux-network','flux-privacy','flux-trust','flux-bookmarks','flux-history','flux-settings','flux-downloads','flux-shortcuts']
+const INTERNAL_PREFIXES = ['flux-network','flux-privacy','flux-trust','flux-bookmarks','flux-history','flux-settings','flux-downloads','flux-shortcuts','flux-cookies','flux-privacymode']
 
 function hideAllInternalPages(tabId) {
   INTERNAL_PREFIXES.forEach(p => {
@@ -712,7 +724,45 @@ function renderSettingsPage(tabId) {
     ${section('Privacy', [
       row('FLUX Shield Default','Enable Shield on startup', toggle(`st-shield-${tabId}`, s.shieldDefault)),
       row('Fingerprint Guard','Randomize canvas, WebGL and audio fingerprints', toggle(`st-fp-${tabId}`, s.fpGuardDefault)),
-      row('Ephemeral Tabs Default','Make all new tabs ephemeral by default', toggle(`st-ephemeral-${tabId}`, s.ephemeralDefault)),
+      row('Ephemeral Tabs Default','Make all new tabs ephemeral by default (no cookies/history/cache)', toggle(`st-ephemeral-${tabId}`, s.ephemeralDefault)),
+      row('Block Third-Party Cookies','Strip cookie headers for cross-site requests', toggle(`st-3pcookie-${tabId}`, s.blockThirdPartyCookies || false)),
+      row('DNS-over-HTTPS','Encrypt DNS lookups via a DoH resolver',
+        `<div style="display:flex;align-items:center;gap:8px;">
+          ${toggle(`st-doh-${tabId}`, s.dohEnabled || false)}
+          ${select(`st-doh-provider-${tabId}`,
+            [['cloudflare','Cloudflare (1.1.1.1)'],['quad9','Quad9'],['google','Google DNS'],['custom','Custom']],
+            s.dohProvider || 'cloudflare')}
+        </div>`),
+      `<div style="padding:10px 18px;border-bottom:1px solid ${C.border};">
+        <div style="font-size:11px;color:${C.muted};margin-bottom:4px;">Custom DoH URL (when "Custom" is selected)</div>
+        <input id="st-doh-custom-${tabId}" value="${s.dohCustomUrl||''}" placeholder="https://your-doh-resolver.example/dns-query"
+          style="width:100%;background:rgba(12,8,20,0.9);border:1px solid ${C.border};color:${C.text};
+                 padding:7px 12px;border-radius:8px;font-size:12px;box-sizing:border-box;outline:none;">
+      </div>`,
+      row('HTTPS-Only Mode','Automatically upgrade HTTP requests to HTTPS; block non-upgradeable sites', toggle(`st-httpsonly-${tabId}`, s.httpsOnly || false)),
+      row('Clear-on-Exit','Wipe browsing data when the browser closes', toggle(`st-clearexit-${tabId}`, s.clearOnExit || false)),
+      `<div id="st-clearexit-opts-${tabId}" style="padding:12px 18px;border-bottom:1px solid ${C.border};display:${s.clearOnExit?'block':'none'};">
+        <div style="font-size:11px;color:${C.muted};margin-bottom:8px;">What to clear on exit:</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;">
+          ${['cookies','cache','history','localStorage'].map(k=>`
+            <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:${C.text};cursor:pointer;">
+              <input type="checkbox" class="st-clear-item" data-key="${k}" ${(s.clearOnExitData||{})[k]!==false?'checked':''}>
+              ${k.charAt(0).toUpperCase()+k.slice(1)}
+            </label>`).join('')}
+        </div>
+      </div>`,
+      `<div style="padding:10px 18px;border-bottom:1px solid ${C.border};">
+        <button id="st-open-cookies-${tabId}"
+          style="font-size:12px;font-weight:700;padding:7px 16px;background:rgba(155,61,255,0.12);
+                 border:1px solid ${C.accent2};border-radius:8px;color:${C.accent2};cursor:pointer;">
+          🍪 Open Cookie Manager
+        </button>
+        <button id="st-open-privacymode-${tabId}"
+          style="font-size:12px;font-weight:700;padding:7px 16px;background:rgba(155,61,255,0.12);
+                 border:1px solid ${C.accent2};border-radius:8px;color:${C.accent2};cursor:pointer;margin-left:10px;">
+          🔏 Privacy Mode v1.5
+        </button>
+      </div>`,
     ].join(''))}
     ${section('About', `
       <div style="padding:18px 18px;">
@@ -740,6 +790,21 @@ function renderSettingsPage(tabId) {
 
   document.getElementById(`st-github-${tabId}`)?.addEventListener('click', () => navigate('https://github.com/Shvquu/flux-browser'))
 
+  // Clear-on-exit toggle: show/hide options panel
+  const clearExitToggle = document.getElementById(`st-clearexit-${tabId}`)
+  const clearExitOpts   = document.getElementById(`st-clearexit-opts-${tabId}`)
+  if (clearExitToggle && clearExitOpts) {
+    clearExitToggle.addEventListener('click', () => {
+      // toggle fires after class update — wait a tick
+      setTimeout(() => {
+        clearExitOpts.style.display = clearExitToggle.classList.contains('on') ? 'block' : 'none'
+      }, 0)
+    })
+  }
+
+  document.getElementById(`st-open-cookies-${tabId}`)?.addEventListener('click', () => navigate('flux://cookies'))
+  document.getElementById(`st-open-privacymode-${tabId}`)?.addEventListener('click', () => navigate('flux://privacymode'))
+
   document.getElementById(`st-save-${tabId}`)?.addEventListener('click', () => {
     const ns = { ...s }
     const startSel = document.getElementById(`st-startpage-${tabId}`)?.value
@@ -750,8 +815,32 @@ function renderSettingsPage(tabId) {
     ns.shieldDefault  = document.getElementById(`st-shield-${tabId}`)?.classList.contains('on')
     ns.fpGuardDefault = document.getElementById(`st-fp-${tabId}`)?.classList.contains('on')
     ns.ephemeralDefault = document.getElementById(`st-ephemeral-${tabId}`)?.classList.contains('on')
+    ns.blockThirdPartyCookies = document.getElementById(`st-3pcookie-${tabId}`)?.classList.contains('on')
+    ns.dohEnabled  = document.getElementById(`st-doh-${tabId}`)?.classList.contains('on')
+    ns.dohProvider = document.getElementById(`st-doh-provider-${tabId}`)?.value || 'cloudflare'
+    ns.dohCustomUrl = document.getElementById(`st-doh-custom-${tabId}`)?.value || ''
+    ns.httpsOnly   = document.getElementById(`st-httpsonly-${tabId}`)?.classList.contains('on')
+    ns.clearOnExit = document.getElementById(`st-clearexit-${tabId}`)?.classList.contains('on')
+    // Clear-on-exit items
+    const clearItems = {}
+    document.querySelectorAll(`#st-clearexit-opts-${tabId} .st-clear-item`).forEach(cb => {
+      clearItems[cb.dataset.key] = cb.checked
+    })
+    ns.clearOnExitData = clearItems
     saveSettings(ns)
     applySettings()
+    // Sync to main process
+    if (window.privacyAPI) {
+      window.privacyAPI.setSettings({
+        httpsOnly:             ns.httpsOnly,
+        dohEnabled:            ns.dohEnabled,
+        dohProvider:           ns.dohProvider,
+        dohCustomUrl:          ns.dohCustomUrl,
+        clearOnExit:           ns.clearOnExit,
+        clearOnExitData:       ns.clearOnExitData,
+        blockThirdPartyCookies: ns.blockThirdPartyCookies,
+      })
+    }
     // Flash save button
     const btn = document.getElementById(`st-save-${tabId}`)
     if (btn) { btn.textContent = '✓ Saved!'; setTimeout(() => { btn.textContent = 'Save Settings' }, 1500) }
@@ -829,7 +918,7 @@ function renderShortcutsPage(tabId) {
 function parseInput(input) {
   input = input.trim()
   if (!input) return CONFIG.HOME_URL
-  const internals = ['flux://network','flux://privacy','flux://trust','flux://bookmarks','flux://history','flux://settings','flux://downloads','flux://shortcuts']
+  const internals = ['flux://network','flux://privacy','flux://trust','flux://bookmarks','flux://history','flux://settings','flux://downloads','flux://shortcuts','flux://cookies','flux://privacymode']
   if (internals.includes(input)) return input
   try {
     const url = new URL(input)
@@ -875,7 +964,7 @@ function showNewTabPage(tabId, isEphemeral = false) {
     { label:'GitHub',    url:'https://github.com',    icon:'{/}' },
     { label:'Wikipedia', url:'https://wikipedia.org', icon:'W' },
     { label:'Reddit',    url:'https://reddit.com',    icon:'R' },
-    { label:'X / Twitter', url:'https://x.com',      icon:'X' },
+    { label:'Privacy Mode', url:'flux://privacymode', icon:'🔏' },
   ]
 
   screen.innerHTML = `
@@ -1006,6 +1095,8 @@ function activateTab(id) {
   const PAGE_MAP = {
     isNetworkPage:   ['flux-network',    renderNetworkPage],
     isPrivacyPage:   ['flux-privacy',    renderPrivacyPage],
+    isCookiePage:    ['flux-cookies',    renderCookiePage],
+    isPrivacyModePage:['flux-privacymode',renderPrivacyModePage],
     isTrustPage:     ['flux-trust',      renderTrustPage],
     isBookmarksPage: ['flux-bookmarks',  renderBookmarksPage],
     isHistoryPage:   ['flux-history',    renderHistoryPage],
@@ -1166,6 +1257,8 @@ function navigate(input) {
   const INTERNAL_MAP = {
     'flux://network':   ['isNetworkPage',   renderNetworkPage],
     'flux://privacy':   ['isPrivacyPage',   renderPrivacyPage],
+    'flux://cookies':   ['isCookiePage',    renderCookiePage],
+    'flux://privacymode':['isPrivacyModePage',renderPrivacyModePage],
     'flux://trust':     ['isTrustPage',     renderTrustPage],
     'flux://bookmarks': ['isBookmarksPage', renderBookmarksPage],
     'flux://history':   ['isHistoryPage',   renderHistoryPage],
@@ -1306,8 +1399,213 @@ function renderTrustPage(tabId) {
 }
 
 // ════════════════════════════════════════════════════════════
-// EVENT LISTENERS
+// flux://cookies – Cookie Manager
 // ════════════════════════════════════════════════════════════
+async function renderCookiePage(tabId) {
+  const tab = getTab(tabId); if (!tab) return
+  document.getElementById(`flux-cookies-${tabId}`)?.remove()
+  const page = makePage('flux-cookies', tabId)
+
+  const stats = await window.cookieAPI.getStats().catch(()=>({total:0,byDomain:{}}))
+  const topDomains = Object.entries(stats.byDomain)
+    .sort((a,b)=>b[1]-a[1])
+    .slice(0, 40)
+
+  const domainRows = topDomains.length === 0
+    ? `<div style="text-align:center;padding:60px 0;color:${C.muted};">No cookies found.</div>`
+    : topDomains.map(([domain, count]) => `
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 18px;
+                  background:rgba(12,8,20,0.6);border:1px solid ${C.border};border-radius:10px;margin-bottom:6px;">
+        <div>
+          <div style="font-size:13px;font-weight:600;color:${C.text};">${domain}</div>
+          <div style="font-size:11px;color:${C.muted};margin-top:2px;">${count} cookie${count!==1?'s':''}</div>
+        </div>
+        <button data-domain="${domain}" class="cookie-purge-btn"
+          style="font-size:11px;font-weight:700;padding:5px 12px;border-radius:7px;
+                 background:rgba(255,60,60,0.12);border:1px solid rgba(255,60,60,0.3);
+                 color:#ff6060;cursor:pointer;">
+          Purge
+        </button>
+      </div>`).join('')
+
+  page.innerHTML = `
+    ${pageHeader('🍪','Cookie Manager','flux://cookies · Per-Site Cookie Control','Third-party blocking · One-click purge')}
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:28px;">
+      <div style="padding:22px 18px;background:rgba(12,8,20,0.8);border:1px solid ${C.border};border-radius:14px;text-align:center;">
+        <span style="font-size:38px;font-weight:800;color:${C.accent2};display:block;margin-bottom:6px;">${stats.total}</span>
+        <span style="font-size:11px;color:${C.muted};letter-spacing:1.5px;text-transform:uppercase;">Total Cookies</span>
+      </div>
+      <div style="padding:22px 18px;background:rgba(12,8,20,0.8);border:1px solid ${C.border};border-radius:14px;text-align:center;">
+        <span style="font-size:38px;font-weight:800;color:${C.accent};display:block;margin-bottom:6px;">${topDomains.length}</span>
+        <span style="font-size:11px;color:${C.muted};letter-spacing:1.5px;text-transform:uppercase;">Sites Tracked</span>
+      </div>
+      <div style="padding:22px 18px;background:rgba(12,8,20,0.8);border:1px solid ${C.border};border-radius:14px;text-align:center;">
+        <button id="cookie-purge-all-${tabId}"
+          style="width:100%;height:100%;background:none;border:none;cursor:pointer;
+                 font-size:13px;font-weight:700;color:#ff6060;letter-spacing:1px;">
+          🗑️ PURGE ALL
+        </button>
+      </div>
+    </div>
+    <div style="font-size:10px;font-weight:700;letter-spacing:3px;color:${C.accent2};text-transform:uppercase;margin-bottom:12px;">
+      Cookies by Site (${topDomains.length} sites)
+    </div>
+    <div id="cookie-list-${tabId}">${domainRows}</div>
+    <div style="padding-top:20px;border-top:1px solid ${C.border};margin-top:8px;
+                font-size:11px;color:${C.muted};display:flex;justify-content:space-between;align-items:center;">
+      <span>FLUX Browser — Zero Telemetry · Zero Tracking · Full Control</span>
+      <span id="cookie-settings-link-${tabId}" style="color:${C.accent};cursor:pointer;">→ Cookie Settings</span>
+    </div>`
+
+  tab.webview.classList.remove('active')
+  if (tab.newTabScreen) tab.newTabScreen.classList.add('hidden')
+  dom.webviewContainer.appendChild(page)
+
+  document.getElementById(`cookie-purge-all-${tabId}`)?.addEventListener('click', async () => {
+    if (!confirm('Delete all cookies from all sites?')) return
+    await window.cookieAPI.purgeAll()
+    renderCookiePage(tabId)
+  })
+  document.getElementById(`cookie-settings-link-${tabId}`)?.addEventListener('click', () => navigate('flux://settings'))
+  page.querySelectorAll('.cookie-purge-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      await window.cookieAPI.purgeDomain(btn.dataset.domain)
+      renderCookiePage(tabId)
+    })
+  })
+}
+
+// ════════════════════════════════════════════════════════════
+// flux://privacymode – Privacy Mode v1.5 Hub
+// ════════════════════════════════════════════════════════════
+async function renderPrivacyModePage(tabId) {
+  const tab = getTab(tabId); if (!tab) return
+  document.getElementById(`flux-privacymode-${tabId}`)?.remove()
+  const page = makePage('flux-privacymode', tabId)
+
+  let ps = {}
+  try { ps = await window.privacyAPI.getSettings() } catch {}
+
+  // Load adblock stats if available
+  let adblockStats = { totalDomains: 0, listStats: {}, isUpdating: false, lastUpdated: null }
+  try { if (window.adblockAPI) adblockStats = await window.adblockAPI.getStats() } catch {}
+
+  const fmtNum  = n => (n || 0).toLocaleString()
+  const fmtDate = ts => ts ? new Date(ts).toLocaleDateString(undefined, { month:'short', day:'numeric', year:'numeric' }) : '—'
+
+  function featureCard(icon, title, desc, id, active, extraHtml = '') {
+    return `
+    <div style="padding:20px 18px;background:rgba(12,8,20,0.85);
+                border:1px solid ${active ? C.accent2+'55' : C.border};
+                border-left:3px solid ${active ? C.accent2 : C.border};
+                border-radius:14px;position:relative;display:flex;flex-direction:column;">
+      <span style="position:absolute;top:14px;right:14px;width:8px;height:8px;border-radius:50%;
+                   background:${active ? C.accent2 : 'rgba(140,60,255,0.2)'};
+                   box-shadow:${active ? '0 0 8px ' + C.accent2 : 'none'};"></span>
+      <div style="font-size:24px;margin-bottom:8px;">${icon}</div>
+      <div style="font-size:13px;font-weight:700;color:${C.text};margin-bottom:5px;">${title}</div>
+      <div style="font-size:11px;color:${C.muted};line-height:1.5;flex:1;margin-bottom:10px;">${desc}</div>
+      ${extraHtml}
+      <button id="pmf-${id}-${tabId}"
+        style="font-size:11px;font-weight:700;padding:5px 14px;border-radius:7px;cursor:pointer;
+               background:${active ? C.accent2 + '22' : 'transparent'};
+               border:1px solid ${active ? C.accent2 : C.border};
+               color:${active ? C.accent2 : C.muted};align-self:flex-start;margin-top:auto;">
+        ${active ? '✓ Enabled' : 'Enable'}
+      </button>
+    </div>`
+  }
+
+  // Adblock extra: filter list stats + update button
+  const updatingLabel = adblockStats.isUpdating
+    ? `<span style="color:${C.accent2};font-size:10px;">↻ Updating…</span>`
+    : `<button id="pmf-adblock-update-${tabId}" style="font-size:10px;padding:2px 8px;border-radius:5px;cursor:pointer;
+        background:transparent;border:1px solid ${C.border};color:${C.muted};">↻ Update now</button>`
+  const easylistStats    = adblockStats.listStats && adblockStats.listStats.easylist
+  const easyprivacyStats = adblockStats.listStats && adblockStats.listStats.easyprivacy
+  const adblockExtra = `
+    <div style="background:rgba(155,61,255,0.06);border:1px solid ${C.accent2}22;border-radius:8px;
+                padding:8px 10px;margin-bottom:10px;font-size:10px;color:${C.muted};">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+        <span style="color:${C.text};font-weight:600;">${fmtNum(adblockStats.totalDomains)} blocked domains</span>
+        ${updatingLabel}
+      </div>
+      ${easylistStats ? `<div>EasyList: ${fmtNum(easylistStats.domains)} · ${fmtDate(easylistStats.updated)}</div>` : ''}
+      ${easyprivacyStats ? `<div>EasyPrivacy: ${fmtNum(easyprivacyStats.domains)} · ${fmtDate(easyprivacyStats.updated)}</div>` : ''}
+      ${!easylistStats && !easyprivacyStats ? `<div style="opacity:0.7;">Filter lists download on first launch…</div>` : ''}
+    </div>`
+
+  // Cookie extra: 3rd-party status
+  const cookieExtra = `<div style="font-size:10px;color:${C.muted};margin-bottom:10px;">
+    3rd-party cookies: <span style="color:${ps.blockThirdPartyCookies ? C.accent2 : C.muted};font-weight:600;">
+      ${ps.blockThirdPartyCookies ? 'Blocked' : 'Allowed'}</span></div>`
+
+  // DoH extra: resolver label
+  const dohProviderNames = { cloudflare:'Cloudflare 1.1.1.1', quad9:'Quad9', google:'Google DNS', custom:'Custom' }
+  const dohExtra = ps.dohEnabled ? `<div style="font-size:10px;color:${C.muted};margin-bottom:10px;">
+    Resolver: <span style="color:${C.accent2};font-weight:600;">${dohProviderNames[ps.dohProvider] || ps.dohProvider}</span></div>` : ''
+
+  // Clear-on-Exit extra: which data
+  const coe = ps.clearOnExitData || {}
+  const coeItems = ['cookies','cache','history','localStorage'].filter(k => coe[k] !== false)
+  const coeExtra = ps.clearOnExit ? `<div style="font-size:10px;color:${C.muted};margin-bottom:10px;">
+    Clears: <span style="color:${C.accent2};font-weight:600;">${coeItems.join(', ') || 'nothing'}</span></div>` : ''
+
+  const features = [
+    { icon:'🫂',  title:'Private / Incognito Tabs',      desc:'Separate partition with no history, no cookies, no cache after close.',                  id:'ephemeral',  active:true,                   extra:'',           action:()=>navigate('flux://settings') },
+    { icon:'🛡️', title:'Built-in Ad & Tracker Blocker',  desc:'EasyList + EasyPrivacy rule sets baked in, auto-updated every 7 days.',                  id:'shield',     active:shield.enabled,         extra:adblockExtra, action:()=>{ shield.enabled=!shield.enabled; window.shieldAPI.toggle(shield.enabled); updateShieldButton(); renderPrivacyModePage(tabId) } },
+    { icon:'🍪',  title:'Cookie Manager',                 desc:'Per-site cookie control, third-party blocking toggle, one-click purge.',                  id:'cookies',    active:ps.blockThirdPartyCookies, extra:cookieExtra,action:()=>navigate('flux://cookies') },
+    { icon:'🌐',  title:'DNS-over-HTTPS',                 desc:'Configurable DoH resolver (Cloudflare, Quad9, custom endpoint).',                         id:'doh',        active:ps.dohEnabled,           extra:dohExtra,    action:()=>{ window.privacyAPI.setSettings({dohEnabled:!ps.dohEnabled}); setTimeout(()=>renderPrivacyModePage(tabId),100) } },
+    { icon:'🔒',  title:'HTTPS-Only Mode',                desc:'Automatic upgrade of HTTP requests, warning for non-upgradeable sites.',                   id:'https',      active:ps.httpsOnly,            extra:'',          action:()=>{ window.privacyAPI.setSettings({httpsOnly:!ps.httpsOnly}); setTimeout(()=>renderPrivacyModePage(tabId),100) } },
+    { icon:'🧹',  title:'Clear-on-Exit',                  desc:'Configurable data wipe: cookies, cache, history, localStorage on quit.',                  id:'clearexit',  active:ps.clearOnExit,          extra:coeExtra,    action:()=>{ window.privacyAPI.setSettings({clearOnExit:!ps.clearOnExit}); setTimeout(()=>renderPrivacyModePage(tabId),100) } },
+  ]
+
+  const activeCount = features.filter(f => f.active).length
+
+  page.innerHTML = `
+    ${pageHeader('🔏','Privacy Mode','flux://privacymode · v1.5 Privacy Suite','Zero Telemetry · Zero Tracking · Full Control')}
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:18px;">
+      <div style="font-size:11px;color:${C.muted};">
+        <span style="color:${C.accent2};font-weight:700;">${activeCount}</span> of ${features.length} features active
+      </div>
+      <div style="flex:1;height:3px;background:${C.border};border-radius:2px;overflow:hidden;">
+        <div style="height:100%;width:${Math.round(activeCount/features.length*100)}%;
+                    background:linear-gradient(90deg,${C.accent2},${C.accent});border-radius:2px;"></div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:28px;">
+      ${features.map(f => featureCard(f.icon, f.title, f.desc, f.id, f.active, f.extra)).join('')}
+    </div>
+    <div style="padding:16px 20px;background:rgba(155,61,255,0.06);border:1px solid ${C.accent2}33;border-radius:14px;
+                display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <div>
+        <div style="font-size:13px;font-weight:700;color:${C.accent2};margin-bottom:3px;">v1.5 · Privacy Mode</div>
+        <div style="font-size:11px;color:${C.muted};">All features in one place. Advanced options available in ⚙️ Settings.</div>
+      </div>
+      <button id="pmf-settings-${tabId}"
+        style="font-size:12px;font-weight:700;padding:8px 18px;border-radius:8px;cursor:pointer;
+               background:${C.accent2}22;border:1px solid ${C.accent2};color:${C.accent2};white-space:nowrap;">
+        ⚙️ Settings
+      </button>
+    </div>`
+
+  tab.webview.classList.remove('active')
+  if (tab.newTabScreen) tab.newTabScreen.classList.add('hidden')
+  dom.webviewContainer.appendChild(page)
+
+  features.forEach(f => {
+    document.getElementById(`pmf-${f.id}-${tabId}`)?.addEventListener('click', f.action)
+  })
+  document.getElementById(`pmf-settings-${tabId}`)?.addEventListener('click', ()=>navigate('flux://settings'))
+  document.getElementById(`pmf-adblock-update-${tabId}`)?.addEventListener('click', () => {
+    if (window.adblockAPI) { window.adblockAPI.updateNow(); setTimeout(()=>renderPrivacyModePage(tabId), 200) }
+  })
+  if (window.adblockAPI) {
+    window.adblockAPI.onStatus(stats => {
+      if (!stats.isUpdating) { const at=getActiveTab(); if(at?.isPrivacyModePage) renderPrivacyModePage(at.id) }
+    })
+  }
+}
 dom.urlInput.addEventListener('keydown', (e) => {
   if (e.key==='Enter') navigate(dom.urlInput.value)
   else if (e.key==='Escape') {
