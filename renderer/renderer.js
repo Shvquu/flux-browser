@@ -62,10 +62,15 @@ function lsSet(key, val) {
 // ════════════════════════════════════════════════════════════
 const BOOKMARKS_KEY = 'flux-bookmarks'
 
+let _bookmarkCache = null
 function loadBookmarks() {
-  return lsGet(BOOKMARKS_KEY, { bookmarks: [], folders: [] })
+  if (!_bookmarkCache) _bookmarkCache = lsGet(BOOKMARKS_KEY, { bookmarks: [], folders: [] })
+  return _bookmarkCache
 }
-function saveBookmarks(data) { lsSet(BOOKMARKS_KEY, data) }
+function saveBookmarks(data) {
+  _bookmarkCache = data
+  lsSet(BOOKMARKS_KEY, data)
+}
 
 function isBookmarked(url) {
   const data = loadBookmarks()
@@ -156,8 +161,15 @@ dom.btnBookmark.addEventListener('click', (e) => {
 const HISTORY_KEY = 'flux-history'
 const MAX_HISTORY = 5000
 
-function loadHistory() { return lsGet(HISTORY_KEY, []) }
-function saveHistory(arr) { lsSet(HISTORY_KEY, arr.slice(0, MAX_HISTORY)) }
+let _historyCache = null
+function loadHistory() {
+  if (!_historyCache) _historyCache = lsGet(HISTORY_KEY, [])
+  return _historyCache
+}
+function saveHistory(arr) {
+  _historyCache = arr.slice(0, MAX_HISTORY)
+  lsSet(HISTORY_KEY, _historyCache)
+}
 
 function recordHistory(url, title, favicon) {
   if (!url || url === 'about:blank' || url.startsWith('flux://')) return
@@ -330,6 +342,12 @@ function renderDownloadTray() {
   )
 }
 
+let _dlTrayTimer = null
+function renderDownloadTrayDebounced() {
+  if (_dlTrayTimer) return
+  _dlTrayTimer = setTimeout(() => { _dlTrayTimer = null; renderDownloadTray() }, 200)
+}
+
 window.downloadAPI.onStarted((info) => {
   downloadHistory.unshift({ ...info })
   updateDownloadBadge()
@@ -339,7 +357,7 @@ window.downloadAPI.onProgress(({ id, receivedBytes, totalBytes }) => {
   const d = downloadHistory.find(x => x.id === id)
   if (d) { d.receivedBytes = receivedBytes; d.totalBytes = totalBytes }
   updateDownloadBadge()
-  renderDownloadTray()
+  renderDownloadTrayDebounced()
 })
 window.downloadAPI.onDone(({ id, state, savePath }) => {
   const d = downloadHistory.find(x => x.id === id)

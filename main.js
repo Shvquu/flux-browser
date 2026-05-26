@@ -120,19 +120,24 @@ const ALWAYS_BLOCK = [
 const connectionLog = []
 const MAX_LOG = 300
 
+let _shieldBroadcastTimer = null
+function scheduleShieldBroadcast() {
+  if (_shieldBroadcastTimer) return
+  _shieldBroadcastTimer = setTimeout(() => {
+    _shieldBroadcastTimer = null
+    const slice = connectionLog.slice(0, 50)
+    BrowserWindow.getAllWindows().forEach(w => w.webContents.send('shield-log-update', slice))
+  }, 300)
+}
+
 function logConnection(type, url, reason) {
   connectionLog.unshift({ type, url, reason, time: Date.now() })
   if (connectionLog.length > MAX_LOG) connectionLog.pop()
-  BrowserWindow.getAllWindows().forEach(w =>
-    w.webContents.send('shield-log-update', connectionLog.slice(0, 50))
-  )
+  scheduleShieldBroadcast()
 }
 
-function isTrackerDomain(url) {
-  try {
-    const host = new URL(url).hostname
-    return ALWAYS_BLOCK.some(d => host === d || host.endsWith('.' + d))
-  } catch { return false }
+function isTrackerDomain(hostname) {
+  return ALWAYS_BLOCK.some(d => hostname === d || hostname.endsWith('.' + d))
 }
 
 function isInternalRequest(url) {
@@ -336,11 +341,16 @@ function setupNetworkFilter() {
     if (url.startsWith('file://') || url.startsWith('chrome-extension://')) {
       return callback({ cancel: false })
     }
-    if (isTrackerDomain(url)) {
+
+    // Parse URL once and reuse the hostname throughout
+    let hostname = ''
+    try { hostname = new URL(url).hostname.toLowerCase() } catch { return callback({ cancel: false }) }
+
+    if (isTrackerDomain(hostname)) {
       logConnection('blocked-tracker', url, 'Known tracker domain')
       return callback({ cancel: true })
     }
-    if (shieldEnabled && isBlockedByFilterList(url)) {
+    if (shieldEnabled && isBlockedByFilterList(hostname)) {
       logConnection('blocked-tracker', url, 'EasyList/EasyPrivacy filter')
       return callback({ cancel: true })
     }
@@ -350,10 +360,10 @@ function setupNetworkFilter() {
     }
     // ── HTTPS-Only Mode ──────────────────────────────────────
     if (privacySettings.httpsOnly && url.startsWith('http://')) {
-      const isLocal = url.startsWith('http://localhost') ||
-                      url.startsWith('http://127.') ||
-                      url.startsWith('http://0.0.0.0') ||
-                      url.startsWith('http://[::1]')
+      const isLocal = hostname === 'localhost' ||
+                      hostname.startsWith('127.') ||
+                      hostname === '0.0.0.0' ||
+                      hostname === '[::1]'
       if (!isLocal) {
         const httpsUrl = 'https://' + url.slice(7)
         logConnection('upgraded', url, 'HTTPS-Only Mode: upgraded to HTTPS')
