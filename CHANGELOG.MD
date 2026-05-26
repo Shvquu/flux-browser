@@ -23,6 +23,109 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [1.5.0](https://github.com/Shvquu/flux-browser/compare/v1.2.0...v1.5.0) – 2026-05-24
+
+> **Zero Telemetry. Zero Tracking. Full Control.**
+
+This release delivers the complete **v1.5 Privacy Suite** — a real EasyList/EasyPrivacy-powered ad blocker, a Chrome-style silent auto-updater, a fully wired settings system, and a live Privacy Mode dashboard. Every feature card now reflects actual runtime state instead of static placeholder text.
+
+### Added
+
+#### 🛡️ Built-in Ad & Tracker Blocker (EasyList / EasyPrivacy)
+- New `adblock.js` module — standalone filter list manager (~230 lines)
+- Downloads and parses **EasyList** and **EasyPrivacy** on first launch — **70,000+ blocked domains** combined
+- Local cache with **7-day TTL** — app works offline immediately; re-downloads in the background when a list expires
+- **Fast-start path**: cached lists are loaded synchronously before any page navigates so blocking is active from the very first request
+- Adblock Plus syntax parser supporting the canonical `||hostname^` domain-blocking pattern
+- Subdomain tree walk on every request: `ads.tracker.com → tracker.com` automatically covered
+- `isBlockedByFilterList(url)` wired into the main network filter in `main.js` — runs on every outgoing request when FLUX Shield is active
+- New `adblockAPI` exposed via `contextBridge`:
+  - `getStats()` — total blocked domains, per-list stats, last-update timestamp
+  - `updateNow()` — forces an immediate re-download of all lists
+  - `toggleList(id, enabled)` — enables or disables individual lists at runtime
+  - `onStatus(cb)` — live callback fired when any list update completes
+- Privacy Mode dashboard Ad Blocker card now shows: total domain count, per-list breakdown (EasyList / EasyPrivacy), last-updated date
+- **"↻ Update now"** button in the card triggers an immediate re-download
+- Dashboard re-renders automatically when a background update finishes
+
+#### 🔄 Auto-Updater (Chrome / Brave style)
+- New `updater.js` module (~180 lines) — replaces the old inline GitHub API banner in `main.js`
+- **Two-path architecture**:
+  - **Production (packaged `.exe` / `.dmg`)** — uses `electron-updater` for fully silent download + install:
+    1. App starts → checks GitHub Releases after 6 seconds
+    2. Newer version found → silent background download begins immediately
+    3. Download complete → "Restart to update" banner appears
+    4. User clicks → `quitAndInstall()` → browser relaunches with the new version
+    5. Periodic re-check every **4 hours**
+  - **Development / unpackaged** — graceful fallback to the GitHub Releases API; shows a banner with a direct download link, no crash
+- Three distinct banner states rendered above the browser content:
+  - 🚀 **Available** — "Version X.Y is available" + Download button
+  - ⬇️ **Downloading** — animated gradient progress bar with live percentage
+  - ✅ **Downloaded** — pulsing glow "Restart to update" button; re-appears after dismiss until the user restarts
+- `autoUpdater.autoInstallOnAppQuit = true` — update installs automatically if the user quits before clicking restart
+- Network errors on first launch silently suppressed — offline users see nothing
+- New `autoUpdateAPI` exposed via `contextBridge`: `getState()`, `checkNow()`, `downloadNow()`, `restartNow()`, `onStateChange(cb)`
+- Legacy `updateAPI` shim retained — existing renderer code continues to work without changes
+- `electron-updater ^6.3.9` added as a production dependency
+- `publish` config added to `package.json` pointing to `Shvquu/flux-browser` — `electron-builder` generates the required `latest.yml` artifact automatically on release builds
+
+#### ⚙️ Settings System (fully wired)
+- `setupSettingsIPC()` was written in v1.2 but never called — all settings IPC handlers were dead code; fixed by registering the call in the startup sequence
+- New `settingsAPI` exposed via `contextBridge`:
+  - `getAll()` / `get(key)` / `set(key, value)` / `setMultiple(changes)`
+  - `resetAll()` / `resetKey(key)` / `getDefaults()`
+  - `getSearchEngines()` / `getSearchUrl(query)`
+  - `onUpdated(cb)` — live callback fired whenever any setting changes
+- Settings changes broadcast to all open windows via `settings-updated` IPC event
+
+#### 🔏 Privacy Mode Dashboard — Live State
+- **Progress bar** at the top: "X of 6 features active" with animated gradient fill
+- **Ad Blocker card** — live domain count, per-list stats, last-updated date, "↻ Update now" button
+- **Cookie Manager card** — shows current third-party cookie blocking status (Blocked / Allowed)
+- **DNS-over-HTTPS card** — shows active resolver name (Cloudflare 1.1.1.1 / Quad9 / Google DNS / Custom)
+- **Clear-on-Exit card** — lists which data categories are configured to be wiped (cookies, cache, history, localStorage)
+- All cards use a left-accent bordered style consistent with the FLUX design system
+- Dashboard auto-reloads when a background adblock update completes
+
+#### 🤝 GitHub Community Files
+- **`.github/pull_request_template.md`** — type checkboxes (bug/feature/breaking/security), test platform checklist, before/after screenshot table, privacy compliance reminder
+- **`.github/ISSUE_TEMPLATE/bug_report.yml`** — OS dropdown, install type, active privacy features at time of bug, DevTools console log field
+- **`.github/ISSUE_TEMPLATE/feature_request.yml`** — required "Privacy impact" field ensures new features respect the Zero-Telemetry promise
+- **`.github/ISSUE_TEMPLATE/security_report.yml`** — redirects critical vulnerabilities to GitHub's private Security Advisory
+- **`.github/ISSUE_TEMPLATE/config.yml`** — disables blank issues; quick links to Discussions and the private Security Advisory
+- **`.github/dependabot.yml`** — automated dependency updates:
+  - npm: checked **daily** at 06:00 Europe/Berlin; `patch` and `minor` updates grouped into a single PR per ecosystem
+  - Electron major-version bumps explicitly ignored (require manual testing)
+  - GitHub Actions: checked **weekly** on Monday
+
+### Changed
+- `adblock.js` integrated into `main.js` network filter — `isBlockedByFilterList(url)` now runs alongside the hardcoded tracker list on every outgoing request when Shield is active
+- Old inline update-checker removed from `main.js` — `GITHUB_REPO`, `RELEASES_API`, `compareVersions()`, `checkForUpdates()` and `setupUpdateIPC()` all moved to `updater.js`
+- `preload.js` extended with four new `contextBridge` APIs: `adblockAPI`, `settingsAPI`, `autoUpdateAPI`, and a legacy `updateAPI` shim
+- `renderPrivacyModePage()` in `renderer.js` rewritten as a fully async, data-driven function — fetches live state from `privacyAPI` and `adblockAPI` at render time instead of static markup
+- Update banner logic in `renderer.js` replaced with `applyUpdateState()` / `renderUpdateBanner()` — three distinct states instead of a single static banner
+- `package.json` version bumped to `1.5.0`
+- `package.json` build `files` list extended to include `adblock.js`, `settings.js`, `updater.js` and all other root-level modules (previously missing from packaged builds)
+- Status bar version string updated from `FLUX v1.2` to `FLUX v1.5`
+
+### Fixed
+- `setupSettingsIPC()` was never called — all settings IPC handlers were dead code since v1.2; fixed
+- `electron-updater` absence in dev mode caused a silent startup crash — wrapped in `try/catch`, falls back to the GitHub API path gracefully
+- Privacy Mode dashboard showed hardcoded placeholder text for ad-blocker stats — now reads live data from `adblockAPI.getStats()`
+- "↻ Update now" button in the Privacy Mode card was non-functional — now correctly calls `adblockAPI.updateNow()` and re-renders on completion
+
+### Technical Details
+- 4 files modified: `main.js`, `preload.js`, `renderer/renderer.js`, `renderer/style.css`
+- 1 file updated: `renderer/index.html` (version string)
+- 3 new root-level modules: `adblock.js`, `updater.js`, `settings.js` (wired up)
+- 7 new GitHub community files under `.github/`
+- New `contextBridge` APIs: `adblockAPI`, `settingsAPI`, `autoUpdateAPI`
+- New IPC channels: `adblock-get-stats`, `adblock-update-now`, `adblock-toggle-list`, `adblock-status`, `auto-update-get-state`, `auto-update-check-now`, `auto-update-download-now`, `auto-update-restart`, `auto-update-state`, `settings-get-all`, `settings-get`, `settings-set`, `settings-set-multiple`, `settings-reset-all`, `settings-reset-key`, `settings-get-defaults`, `settings-get-search-engines`, `settings-get-search-url`, `settings-updated`
+- New production dependency: `electron-updater ^6.3.9`
+- ~4,200 lines of code (up from ~3,400 in v1.2.0)
+
+---
+
 ## [1.1.2](https://github.com/Shvquu/flux-browser/compare/v1.1.0...v1.1.2) – 2026-05-10
 
 > **Zero Telemetry. Zero Tracking. Full Control.**
@@ -301,7 +404,8 @@ FLUX Browser follows [Semantic Versioning](https://semver.org/):
 
 ---
 
-[Unreleased]: https://github.com/Shvquu/flux-browser/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/Shvquu/flux-browser/compare/v1.5.0...HEAD
+[1.5.0]: https://github.com/Shvquu/flux-browser/compare/v1.2.0...v1.5.0
 [1.2.0]: https://github.com/Shvquu/flux-browser/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/Shvquu/flux-browser/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/Shvquu/flux-browser/releases/tag/v1.0.0
