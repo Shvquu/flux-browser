@@ -405,7 +405,7 @@ FLUX Browser follows [Semantic Versioning](https://semver.org/):
 ---
 
 [Unreleased]: https://github.com/Shvquu/flux-browser/compare/v1.5.0...HEAD
-[1.5.0]: https://github.com/Shvquu/flux-browser/compare/v1.2.0...v1.5.0
-[1.2.0]: https://github.com/Shvquu/flux-browser/compare/v1.1.0...v1.2.0
-[1.1.0]: https://github.com/Shvquu/flux-browser/compare/v1.0.0...v1.1.0
+[1.5.0]: https://github.com/Shvquu/flux-browser/compare/v1.1.2...v1.5.0
+[1.1.2]: https://github.com/Shvquu/flux-browser/compare/v1.1.1...v1.1.2
+[1.1.1]: https://github.com/Shvquu/flux-browser/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/Shvquu/flux-browser/releases/tag/v1.0.0
