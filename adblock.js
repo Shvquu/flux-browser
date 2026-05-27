@@ -221,17 +221,13 @@ async function rebuildBlocklist(forceFetch = false) {
  * Returns true if the given URL's hostname is blocked by the filter lists.
  * Also checks parent domains (so ads.blocked.com → blocked.com → matches).
  */
-function isBlockedByFilterList(url) {
+function isBlockedByFilterList(hostname) {
   if (blockedDomains.size === 0) return false
-  try {
-    const host  = new URL(url).hostname.toLowerCase()
-    if (blockedDomains.has(host)) return true
-    // Walk up the domain tree: sub.host.tld → host.tld
-    const parts = host.split('.')
-    for (let i = 1; i < parts.length - 1; i++) {
-      if (blockedDomains.has(parts.slice(i).join('.'))) return true
-    }
-  } catch { /* ignore parse errors */ }
+  if (blockedDomains.has(hostname)) return true
+  const parts = hostname.split('.')
+  for (let i = 1; i < parts.length - 1; i++) {
+    if (blockedDomains.has(parts.slice(i).join('.'))) return true
+  }
   return false
 }
 

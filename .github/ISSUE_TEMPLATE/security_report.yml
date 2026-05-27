@@ -1,0 +1,98 @@
+name: "🔐 Security Vulnerability"
+description: "Report a security or privacy vulnerability. For critical issues use GitHub's private Security Advisory."
+title: "[Security]: "
+labels: ["security", "high-priority"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## ⚠️ Important
+        **For critical vulnerabilities** (RCE, data exfiltration, sandbox escape) please use
+        [GitHub's private Security Advisory](../../security/advisories/new) instead of a public issue.
+
+        This form is for lower-severity security issues that are safe to discuss publicly
+        (e.g. a UI quirk that could be misleading, a minor information leak, a missing hardening step).
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: "Severity"
+      options:
+        - Low — minor hardening gap, no direct user impact
+        - Medium — could mislead or inconvenience the user
+        - High — data or privacy leak (use Security Advisory for Critical)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: "Affected area"
+      options:
+        - FLUX Shield / Network Filter
+        - Ad & Tracker Blocker
+        - DNS-over-HTTPS
+        - HTTPS-Only Mode
+        - Cookie Manager
+        - Clear-on-Exit
+        - Ephemeral Tabs
+        - Fingerprint Guard
+        - Auto-Updater
+        - IPC / Preload
+        - Content Security Policy
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: "Vulnerability description"
+      description: "What is the issue? What can an attacker / malicious site do?"
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: "Steps to reproduce"
+      placeholder: |
+        1. Enable HTTPS-Only Mode
+        2. Navigate to http://…
+        3. Observe that…
+    validations:
+      required: true
+
+  - type: textarea
+    id: impact
+    attributes:
+      label: "Impact"
+      description: "What data or user privacy is at risk?"
+    validations:
+      required: true
+
+  - type: textarea
+    id: mitigation
+    attributes:
+      label: "Suggested mitigation"
+      description: "Do you have a fix or workaround in mind?"
+
+  - type: input
+    id: version
+    attributes:
+      label: "FLUX Browser version"
+      placeholder: "e.g. 1.5.0"
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: "Before submitting"
+      options:
+        - label: This is not a critical vulnerability (if it is, I will use the Security Advisory)
+          required: true
+        - label: I have not publicly disclosed this issue elsewhere yet
+          required: true

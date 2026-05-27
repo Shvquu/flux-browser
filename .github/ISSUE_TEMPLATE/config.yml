@@ -1,0 +1,10 @@
+blank_issues_enabled: false
+
+contact_links:
+  - name: 💬 Discussion & Questions
+    url: https://github.com/Shvquu/flux-browser/discussions
+    about: General questions, help, and ideas go here — not in Issues.
+
+  - name: 🔐 Critical Security Advisory (private)
+    url: https://github.com/Shvquu/flux-browser/security/advisories/new
+    about: Report critical vulnerabilities privately (RCE, sandbox escape, data exfiltration).
