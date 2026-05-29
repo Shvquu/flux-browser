@@ -11,7 +11,8 @@
 ![Electron](https://img.shields.io/badge/electron-29.x-5ce0ff?style=flat-square)
 ![License](https://img.shields.io/badge/license-MIT-ff6a00?style=flat-square)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-444?style=flat-square)
-![Downloads](https://img.shields.io/github/downloads/Shvquu/flux-browser/total?style=flat-square&color=9b3dff&label=Downloads)
+![Downloads](https://img.shields.io/github/downloads/Shvquu/flux-browser/total?label=Downloads)
+![Build Status](https://github.com/Shvquu/flux-browser/actions/workflows/build.yml/badge.svg)
 
 </div>
 
