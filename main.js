@@ -2,7 +2,7 @@
 // main.js – Main Process
 // ============================================================
 
-const { app, BrowserWindow, ipcMain, session, shell } = require('electron')
+const { app, BrowserWindow, ipcMain, session, shell, webContents } = require('electron')
 const path = require('path')
 
 if (require('electron-squirrel-startup')) app.quit()
@@ -11,6 +11,7 @@ if (require('electron-squirrel-startup')) app.quit()
 const { setupAdblockIPC, initAdblock, isBlockedByFilterList } = require('./adblock')
 const { setupSettingsIPC } = require('./settings')
 const { setupAutoUpdater }  = require('./updater')
+const { setupExtensionIPC, initExtensions } = require('./extensions')
 
 // ── Privacy Mode v1.5 Settings ──────────────────────────────
 let privacySettings = {
@@ -147,6 +148,42 @@ function isInternalRequest(url) {
     'ocsp.','crl.',
   ]
   return patterns.some(p => url.includes(p))
+}
+
+// ── Resource Monitor ───────────────────────────────────────
+const tabWebContentsMap = new Map()   // tabId (renderer) → webContentsId
+
+function collectMetrics() {
+  const all    = app.getAppMetrics()
+  const result = {}
+  tabWebContentsMap.forEach((wcId, tabId) => {
+    try {
+      const wc = webContents.fromId(wcId)
+      if (!wc || wc.isDestroyed()) { tabWebContentsMap.delete(tabId); return }
+      const pid = wc.getOSProcessId()
+      const m   = all.find(x => x.pid === pid)
+      if (m) {
+        result[tabId] = {
+          cpu: Math.round(m.cpu.percentCPUUsage * 10) / 10,
+          mem: Math.round(m.memory.workingSetSize / 1024),   // → MB
+        }
+      }
+    } catch {}
+  })
+  return result
+}
+
+function setupResourceMonitor() {
+  ipcMain.on('resource-register-tab',   (_, tabId, wcId) => tabWebContentsMap.set(tabId, wcId))
+  ipcMain.on('resource-unregister-tab', (_, tabId)       => tabWebContentsMap.delete(tabId))
+  ipcMain.handle('resource-get-metrics', () => collectMetrics())
+
+  // Push metrics every 2 s to all windows
+  setInterval(() => {
+    const m = collectMetrics()
+    if (Object.keys(m).length === 0) return
+    BrowserWindow.getAllWindows().forEach(w => w.webContents.send('resource-metrics', m))
+  }, 2000)
 }
 
 // ── Download Manager ───────────────────────────────────────
@@ -416,7 +453,7 @@ function setupClearOnExit() {
 // ── Auto-Updater handled by updater.js ───────────────────
 
 // ── Start ──────────────────────────────────────────────────
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
     if (details.url.startsWith('file://')) {
       callback({
@@ -441,8 +478,11 @@ app.whenReady().then(() => {
   setupClearOnExit()
   setupAdblockIPC()
   setupSettingsIPC()
+  setupExtensionIPC()
+  setupResourceMonitor()
   applyDoH()
-  initAdblock()   // load cached filter lists; refresh in background if stale
+  initAdblock()       // load cached filter lists; refresh in background if stale
+  await initExtensions()  // load persisted extensions before window opens
   createWindow()
   setupAutoUpdater()  // check after window is ready
 

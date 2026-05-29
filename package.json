@@ -44,6 +44,7 @@
       "main.js",
       "preload.js",
       "adblock.js",
+      "extensions.js",
       "settings.js",
       "updater.js",
       "bookmarks.js",

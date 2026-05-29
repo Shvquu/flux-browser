@@ -120,6 +120,34 @@ contextBridge.exposeInMainWorld('adblockAPI', {
   },
 })
 
+// ── Chrome Extension Manager ───────────────────────────────
+contextBridge.exposeInMainWorld('extensionAPI', {
+  list:               ()      => ipcRenderer.invoke('ext-list'),
+  installUnpacked:    ()      => ipcRenderer.invoke('ext-install-unpacked'),
+  installCrx:         ()      => ipcRenderer.invoke('ext-install-crx'),
+  installFromWebStore:(extId) => ipcRenderer.invoke('ext-install-webstore', extId),
+  remove:             (extId) => ipcRenderer.invoke('ext-remove', extId),
+  onListUpdated: (cb) => {
+    ipcRenderer.removeAllListeners('ext-list-updated')
+    ipcRenderer.on('ext-list-updated', (_, list) => cb(list))
+  },
+  onInstallProgress: (cb) => {
+    ipcRenderer.removeAllListeners('ext-install-progress')
+    ipcRenderer.on('ext-install-progress', (_, info) => cb(info))
+  },
+})
+
+// ── Resource Monitor ───────────────────────────────────────
+contextBridge.exposeInMainWorld('resourceAPI', {
+  registerTab:   (tabId, wcId) => ipcRenderer.send('resource-register-tab', tabId, wcId),
+  unregisterTab: (tabId)       => ipcRenderer.send('resource-unregister-tab', tabId),
+  getMetrics:    ()            => ipcRenderer.invoke('resource-get-metrics'),
+  onMetrics: (cb) => {
+    ipcRenderer.removeAllListeners('resource-metrics')
+    ipcRenderer.on('resource-metrics', (_, m) => cb(m))
+  },
+})
+
 // ── Persistent Settings ────────────────────────────────────
 contextBridge.exposeInMainWorld('settingsAPI', {
   getAll:          ()              => ipcRenderer.invoke('settings-get-all'),

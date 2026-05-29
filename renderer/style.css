@@ -1698,3 +1698,137 @@ webview.active { display: flex; }  /* Nur aktiver Tab sichtbar */
 
 /* Settings Toggle */
 .st-toggle { transition: background 0.2s; }
+
+/* ── Resource Monitor Sidebar ────────────────────────────── */
+#resource-sidebar {
+  position: fixed;
+  /* sit below tab-bar + navbar + optional bookmark-bar */
+  top: calc(var(--chrome-h) + var(--nav-h));
+  bottom: var(--status-h);
+  right: 0;
+  width: 260px;
+  background: rgba(6, 5, 10, 0.98);
+  border-left: 1px solid var(--border);
+  box-shadow: -6px 0 24px rgba(0,0,0,0.5);
+  z-index: 800;
+  display: flex;
+  flex-direction: column;
+  animation: slide-in-right 0.2s cubic-bezier(0.34,1.56,0.64,1) forwards;
+  font-family: 'Exo 2', sans-serif;
+}
+#resource-sidebar.hidden { display: none; }
+
+@keyframes slide-in-right {
+  from { transform: translateX(110%); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+
+#resource-sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px 9px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.res-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 0.5px;
+  display: flex;
+  align-items: center;
+}
+
+.res-close-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-secondary);
+  width: 20px; height: 20px;
+  font-size: 11px;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: color 0.15s, border-color 0.15s;
+}
+.res-close-btn:hover { color: var(--danger); border-color: rgba(255,64,96,0.4); }
+
+#resource-sidebar-body {
+  flex: 1;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(155,61,255,0.3) transparent;
+}
+
+/* Resource-Monitor is active (button lit) */
+#btn-resource-monitor.res-active {
+  color: var(--accent);
+  border-color: var(--accent-glow);
+  background: rgba(92,224,255,0.07);
+}
+
+/* ── Chrome Web Store Banner ─────────────────────────────── */
+#webstore-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 16px;
+  background: linear-gradient(90deg, rgba(74,222,128,0.1), rgba(155,61,255,0.08));
+  border-bottom: 1px solid rgba(74,222,128,0.3);
+  flex-shrink: 0;
+  font-family: 'Exo 2', sans-serif;
+  animation: tab-appear 0.2s ease;
+  position: relative;
+  z-index: 50;
+}
+#webstore-banner.hidden { display: none; }
+
+.ws-banner-icon { font-size: 18px; flex-shrink: 0; }
+
+.ws-banner-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.ws-banner-text strong {
+  font-size: 12px;
+  font-weight: 700;
+  color: #4ade80;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ws-banner-text span { font-size: 10px; color: rgba(74,222,128,0.6); }
+
+.ws-banner-btn {
+  padding: 5px 14px;
+  background: rgba(74,222,128,0.15);
+  border: 1px solid rgba(74,222,128,0.4);
+  border-radius: 7px;
+  color: #4ade80;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  font-family: 'Exo 2', sans-serif;
+  transition: background 0.15s;
+  flex-shrink: 0;
+}
+.ws-banner-btn:hover { background: rgba(74,222,128,0.25); }
+
+.ws-banner-close {
+  background: transparent;
+  border: 1px solid rgba(74,222,128,0.2);
+  border-radius: 5px;
+  color: rgba(74,222,128,0.5);
+  width: 22px; height: 22px;
+  font-size: 11px;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  transition: color 0.15s, border-color 0.15s;
+}
+.ws-banner-close:hover { color: rgba(74,222,128,0.9); border-color: rgba(74,222,128,0.5); }

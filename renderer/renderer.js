@@ -393,6 +393,8 @@ const SHORTCUTS_DEF = [
   ['Ctrl+1–9',      'Switch to Tab'],
   ['F1',            'Keyboard Shortcuts'],
   ['Ctrl+Shift+I',  'DevTools'],
+  ['Ctrl+Shift+E',  'Extensions'],
+  ['Ctrl+Shift+M',  'Resource Monitor'],
 ]
 
 function showShortcutOverlay() {
@@ -522,7 +524,7 @@ if (window.autoUpdateAPI) {
 // ════════════════════════════════════════════════════════════
 // INTERNAL PAGE HELPER
 // ════════════════════════════════════════════════════════════
-const INTERNAL_PREFIXES = ['flux-network','flux-privacy','flux-trust','flux-bookmarks','flux-history','flux-settings','flux-downloads','flux-shortcuts','flux-cookies','flux-privacymode']
+const INTERNAL_PREFIXES = ['flux-network','flux-privacy','flux-trust','flux-bookmarks','flux-history','flux-settings','flux-downloads','flux-shortcuts','flux-cookies','flux-privacymode','flux-extensions']
 
 function hideAllInternalPages(tabId) {
   INTERNAL_PREFIXES.forEach(p => {
@@ -1004,7 +1006,7 @@ function renderShortcutsPage(tabId) {
 function parseInput(input) {
   input = input.trim()
   if (!input) return CONFIG.HOME_URL
-  const internals = ['flux://network','flux://privacy','flux://trust','flux://bookmarks','flux://history','flux://settings','flux://downloads','flux://shortcuts','flux://cookies','flux://privacymode']
+  const internals = ['flux://network','flux://privacy','flux://trust','flux://bookmarks','flux://history','flux://settings','flux://downloads','flux://shortcuts','flux://cookies','flux://privacymode','flux://extensions']
   if (internals.includes(input)) return input
   try {
     const url = new URL(input)
@@ -1186,9 +1188,10 @@ function activateTab(id) {
     isTrustPage:     ['flux-trust',      renderTrustPage],
     isBookmarksPage: ['flux-bookmarks',  renderBookmarksPage],
     isHistoryPage:   ['flux-history',    renderHistoryPage],
-    isSettingsPage:  ['flux-settings',   renderSettingsPage],
-    isDownloadsPage: ['flux-downloads',  renderDownloadsPage],
-    isShortcutsPage: ['flux-shortcuts',  renderShortcutsPage],
+    isSettingsPage:    ['flux-settings',    renderSettingsPage],
+    isDownloadsPage:   ['flux-downloads',   renderDownloadsPage],
+    isShortcutsPage:   ['flux-shortcuts',   renderShortcutsPage],
+    isExtensionsPage:  ['flux-extensions',  renderExtensionsPage],
   }
 
   let handledInternal = false
@@ -1219,6 +1222,7 @@ function closeTab(id) {
   const tab = state.tabs[index]
   tab.tabEl.remove(); tab.webview.remove(); tab.newTabScreen?.remove()
   removeAllInternalPages(tab.id)
+  window.resourceAPI.unregisterTab(tab.id)
   if (tab.isEphemeral && tab.partitionName) window.ephemeralAPI.clear(tab.partitionName).catch(()=>{})
   state.tabs.splice(index,1)
   if (state.tabs.length === 0) createTab()
@@ -1269,6 +1273,13 @@ function registerWebviewEvents(tab) {
         window.trustAPI.get(domain).then(config => { trust.store.set(domain,config); updateTrustBadge(domain,config) })
       } else { updateTrustBadge(null,null) }
     }
+    // Chrome Web Store detection – offer one-click install in FLUX
+    const wsMatch = e.url.match(/chrome\.google\.com\/webstore\/detail\/([^/?#]+)\/([a-z]{32})/)
+    if (wsMatch && state.activeTabId === tab.id) {
+      showWebStoreBanner(wsMatch[1], wsMatch[2])
+    } else if (state.activeTabId === tab.id) {
+      hideWebStoreBanner()
+    }
   })
 
   webview.addEventListener('did-navigate-in-page', () => {
@@ -1282,6 +1293,9 @@ function registerWebviewEvents(tab) {
   })
 
   webview.addEventListener('dom-ready', async () => {
+    // Register with resource monitor (always, even for about:blank)
+    window.resourceAPI.registerTab(tab.id, webview.getWebContentsId())
+
     const url = webview.getURL()
     const domain = domainFromURL(url)
     if (!domain) return
@@ -1349,8 +1363,9 @@ function navigate(input) {
     'flux://bookmarks': ['isBookmarksPage', renderBookmarksPage],
     'flux://history':   ['isHistoryPage',   renderHistoryPage],
     'flux://settings':  ['isSettingsPage',  renderSettingsPage],
-    'flux://downloads': ['isDownloadsPage', renderDownloadsPage],
-    'flux://shortcuts': ['isShortcutsPage', renderShortcutsPage],
+    'flux://downloads':  ['isDownloadsPage',  renderDownloadsPage],
+    'flux://shortcuts':  ['isShortcutsPage',  renderShortcutsPage],
+    'flux://extensions': ['isExtensionsPage', renderExtensionsPage],
   }
 
   if (INTERNAL_MAP[url]) {
@@ -1692,6 +1707,302 @@ async function renderPrivacyModePage(tabId) {
     })
   }
 }
+// ════════════════════════════════════════════════════════════
+// RESOURCE MONITOR SIDEBAR
+// ════════════════════════════════════════════════════════════
+let resourceMetrics = {}
+let resourceSidebarOpen = false
+
+function toggleResourceSidebar() {
+  resourceSidebarOpen = !resourceSidebarOpen
+  const sidebar = document.getElementById('resource-sidebar')
+  const btn     = document.getElementById('btn-resource-monitor')
+  if (resourceSidebarOpen) {
+    sidebar.classList.remove('hidden')
+    btn?.classList.add('res-active')
+    updateResourceSidebar()
+  } else {
+    sidebar.classList.add('hidden')
+    btn?.classList.remove('res-active')
+  }
+}
+
+function updateResourceSidebar() {
+  if (!resourceSidebarOpen) return
+  const body = document.getElementById('resource-sidebar-body')
+  if (!body) return
+
+  if (state.tabs.length === 0) {
+    body.innerHTML = `<div style="padding:20px 14px;font-size:11px;color:rgba(210,180,255,0.35);">No tabs open.</div>`
+    return
+  }
+
+  // Total browser memory from all tracked tabs
+  const totalMem = Object.values(resourceMetrics).reduce((s, m) => s + (m.mem || 0), 0)
+
+  body.innerHTML = [
+    // Header row: total
+    `<div style="padding:10px 14px 8px;border-bottom:1px solid rgba(140,60,255,0.15);display:flex;justify-content:space-between;align-items:center;">
+      <span style="font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:rgba(210,180,255,0.4);">ALL TABS</span>
+      <span style="font-size:10px;color:#5ce0ff;font-family:'JetBrains Mono',monospace;">${totalMem} MB total</span>
+    </div>`,
+    ...state.tabs.map(tab => {
+      const m       = resourceMetrics[tab.id]
+      const isActive = tab.id === state.activeTabId
+      const title   = tab.tabEl.querySelector('.tab-title')?.textContent || 'Tab'
+      const cpu     = m?.cpu ?? null
+      const mem     = m?.mem ?? null
+      const cpuColor = cpu === null ? 'rgba(210,180,255,0.3)' : cpu > 25 ? '#f87171' : cpu > 8 ? '#facc15' : '#4ade80'
+      const cpuPct   = cpu === null ? 0 : Math.min(cpu * 2, 100)     // 50 % CPU → full bar
+      const memPct   = mem === null ? 0 : Math.min(mem / 4, 100)     // 400 MB → full bar
+
+      return `<div style="padding:10px 14px;border-bottom:1px solid rgba(140,60,255,0.1);">
+        <div style="display:flex;align-items:center;gap:5px;margin-bottom:7px;">
+          ${tab.isEphemeral ? '<span style="font-size:9px;line-height:1;">👻</span>' : ''}
+          <span style="font-size:11px;font-weight:${isActive?'700':'400'};
+                color:${isActive?'#5ce0ff':'rgba(210,180,255,0.65)'};
+                white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:196px;"
+                title="${title}">${isActive ? '▸ ' : ''}${title}</span>
+        </div>
+        <div style="margin-bottom:5px;">
+          <div style="display:flex;justify-content:space-between;margin-bottom:3px;">
+            <span style="font-size:9px;color:rgba(210,180,255,0.35);letter-spacing:1px;text-transform:uppercase;">CPU</span>
+            <span style="font-size:9px;font-family:'JetBrains Mono',monospace;color:${cpuColor};">${cpu !== null ? cpu.toFixed(1)+'%' : '—'}</span>
+          </div>
+          <div style="height:3px;background:rgba(140,60,255,0.12);border-radius:2px;overflow:hidden;">
+            <div style="height:3px;width:${cpuPct}%;background:${cpuColor};border-radius:2px;transition:width 0.5s ease;"></div>
+          </div>
+        </div>
+        <div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:3px;">
+            <span style="font-size:9px;color:rgba(210,180,255,0.35);letter-spacing:1px;text-transform:uppercase;">RAM</span>
+            <span style="font-size:9px;font-family:'JetBrains Mono',monospace;color:#5ce0ff;">${mem !== null ? mem+' MB' : '—'}</span>
+          </div>
+          <div style="height:3px;background:rgba(140,60,255,0.12);border-radius:2px;overflow:hidden;">
+            <div style="height:3px;width:${memPct}%;background:linear-gradient(90deg,#9b3dff,#5ce0ff);border-radius:2px;transition:width 0.5s ease;"></div>
+          </div>
+        </div>
+      </div>`
+    }),
+  ].join('')
+}
+
+window.resourceAPI.onMetrics(metrics => {
+  resourceMetrics = metrics
+  updateResourceSidebar()
+})
+
+document.getElementById('btn-resource-monitor')?.addEventListener('click', toggleResourceSidebar)
+document.getElementById('resource-sidebar-close')?.addEventListener('click', toggleResourceSidebar)
+
+// ════════════════════════════════════════════════════════════
+// CHROME WEB STORE BANNER
+// ════════════════════════════════════════════════════════════
+let _webstorePendingExtId = null
+
+function showWebStoreBanner(extName, extId) {
+  _webstorePendingExtId = extId
+  const banner = document.getElementById('webstore-banner')
+  if (!banner) return
+  const nameEl = document.getElementById('webstore-banner-name')
+  if (nameEl) nameEl.textContent = decodeURIComponent(extName).replace(/-/g, ' ')
+  banner.classList.remove('hidden')
+}
+
+function hideWebStoreBanner() {
+  document.getElementById('webstore-banner')?.classList.add('hidden')
+  _webstorePendingExtId = null
+}
+
+document.getElementById('webstore-banner-dismiss')?.addEventListener('click', hideWebStoreBanner)
+
+document.getElementById('webstore-banner-install')?.addEventListener('click', async () => {
+  if (!_webstorePendingExtId) return
+  const extId = _webstorePendingExtId
+  hideWebStoreBanner()
+  // Show a loading toast
+  const toast = document.createElement('div')
+  toast.id = 'ext-install-toast'
+  toast.style.cssText = 'position:fixed;bottom:40px;left:50%;transform:translateX(-50%);background:rgba(12,8,20,0.97);border:1px solid rgba(155,61,255,0.4);border-radius:8px;padding:10px 20px;font-size:12px;color:#9b3dff;z-index:99999;white-space:nowrap;font-family:"Exo 2",sans-serif;'
+  toast.textContent = '🧩 Downloading extension…'
+  document.body.appendChild(toast)
+
+  window.extensionAPI.onInstallProgress(({ step }) => {
+    const labels = { downloading: '⬇️ Downloading…', extracting: '📦 Extracting…', loading: '⚡ Loading…' }
+    toast.textContent = labels[step] || step
+  })
+
+  try {
+    const entry = await window.extensionAPI.installFromWebStore(extId)
+    toast.style.borderColor = 'rgba(74,222,128,0.4)'
+    toast.style.color = '#4ade80'
+    toast.textContent = `✓ "${entry.name}" installed — restart recommended`
+    setTimeout(() => toast.remove(), 3500)
+  } catch (e) {
+    toast.style.borderColor = 'rgba(248,113,113,0.4)'
+    toast.style.color = '#f87171'
+    toast.textContent = `✕ Install failed: ${e.message}`
+    setTimeout(() => toast.remove(), 5000)
+  }
+})
+
+// ════════════════════════════════════════════════════════════
+// flux://extensions
+// ════════════════════════════════════════════════════════════
+function renderExtensionsPage(tabId) {
+  const tab = getTab(tabId)
+  if (!tab) return
+  document.getElementById(`flux-extensions-${tabId}`)?.remove()
+
+  const page = makePage('flux-extensions', tabId)
+
+  function renderExtList(exts) {
+    if (!exts || exts.length === 0) {
+      return `<div style="text-align:center;padding:60px 0;color:${C.muted};font-size:13px;">
+        No extensions installed yet.<br>
+        <span style="font-size:11px;">Load an unpacked folder, a .crx file, or paste a Chrome Web Store URL.</span>
+      </div>`
+    }
+    return exts.map(ext => {
+      const srcLabel  = ext.source === 'webstore' ? '🌐 Web Store' : ext.source === 'crx' ? '📦 .crx' : '📁 Unpacked'
+      const srcColor  = ext.source === 'webstore' ? C.accent2 : C.accent
+      return `<div style="display:flex;align-items:flex-start;gap:14px;padding:16px 18px;
+          background:rgba(12,8,20,0.7);border:1px solid ${ext.error ? C.red+'33' : C.border};
+          border-radius:12px;margin-bottom:8px;transition:border-color 0.15s;">
+        <div style="width:38px;height:38px;background:rgba(155,61,255,0.12);border-radius:9px;
+            display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">🧩</div>
+        <div style="flex:1;min-width:0;">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:3px;">
+            <span style="font-size:13px;font-weight:700;color:${C.text};">${ext.name}</span>
+            <span style="font-size:10px;color:${C.muted};">v${ext.version}</span>
+            <span style="font-size:9px;font-weight:700;padding:1px 7px;border-radius:4px;
+                background:${srcColor}18;color:${srcColor};border:1px solid ${srcColor}33;">${srcLabel}</span>
+          </div>
+          ${ext.description ? `<div style="font-size:11px;color:${C.muted};margin-bottom:4px;line-height:1.5;">${ext.description}</div>` : ''}
+          ${ext.error
+            ? `<div style="font-size:10px;color:${C.red};margin-top:2px;">⚠ ${ext.error}</div>`
+            : `<div style="font-size:10px;color:${C.green};margin-top:2px;">✓ Active — ID: <span style="font-family:monospace;opacity:0.7;">${ext.id}</span></div>`}
+        </div>
+        <button data-ext-id="${ext.id}" data-ext-name="${ext.name}" class="ext-remove-btn"
+          style="background:transparent;border:1px solid ${C.border};color:${C.red};
+                 border-radius:6px;padding:5px 12px;font-size:10px;font-weight:700;cursor:pointer;flex-shrink:0;
+                 transition:background 0.15s,border-color 0.15s;">
+          Remove
+        </button>
+      </div>`
+    }).join('')
+  }
+
+  page.innerHTML = `
+    ${pageHeader('🧩','Extensions','flux://extensions · Chrome Extension Support','')}
+    <div style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;">
+      <button id="ext-load-unpacked-${tabId}"
+        style="padding:9px 16px;background:${C.accent2}1a;border:1px solid ${C.accent2}44;
+               border-radius:8px;color:${C.accent2};font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;">
+        📁 Load Unpacked
+      </button>
+      <button id="ext-load-crx-${tabId}"
+        style="padding:9px 16px;background:${C.accent}1a;border:1px solid ${C.accent}44;
+               border-radius:8px;color:${C.accent};font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;">
+        📦 Load .crx File
+      </button>
+      <button id="ext-webstore-${tabId}"
+        style="padding:9px 16px;background:rgba(74,222,128,0.1);border:1px solid rgba(74,222,128,0.3);
+               border-radius:8px;color:${C.green};font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;">
+        🌐 Web Store URL / ID
+      </button>
+    </div>
+    <div style="padding:11px 16px;background:rgba(155,61,255,0.05);border:1px solid ${C.accent2}1a;
+                border-radius:10px;margin-bottom:22px;font-size:11px;color:${C.muted};line-height:1.65;">
+      <strong style="color:${C.text};">ℹ Compatibility:</strong>
+      Content scripts, background pages and network rules work well in FLUX.
+      Browser-action toolbars and Manifest V3 service workers have limited support.
+      A browser restart is required after installing new extensions.
+    </div>
+    <div id="ext-list-${tabId}"><div style="padding:20px;color:${C.muted};font-size:12px;">Loading…</div></div>`
+
+  tab.webview.classList.remove('active')
+  if (tab.newTabScreen) tab.newTabScreen.classList.add('hidden')
+  dom.webviewContainer.appendChild(page)
+
+  async function refreshList() {
+    const exts  = await window.extensionAPI.list().catch(() => [])
+    const listEl = document.getElementById(`ext-list-${tabId}`)
+    if (!listEl) return
+    listEl.innerHTML = renderExtList(exts)
+    listEl.querySelectorAll('.ext-remove-btn').forEach(btn => {
+      btn.addEventListener('mouseenter', () => { btn.style.background = C.red + '18'; btn.style.borderColor = C.red + '55' })
+      btn.addEventListener('mouseleave', () => { btn.style.background = 'transparent'; btn.style.borderColor = C.border })
+      btn.addEventListener('click', async () => {
+        if (!confirm(`Remove extension "${btn.dataset.extName}"?\nThe extension folder will be deleted.`)) return
+        try {
+          await window.extensionAPI.remove(btn.dataset.extId)
+          await refreshList()
+        } catch (e) { alert('Error: ' + e.message) }
+      })
+    })
+  }
+
+  document.getElementById(`ext-load-unpacked-${tabId}`)?.addEventListener('click', async () => {
+    try {
+      const entry = await window.extensionAPI.installUnpacked()
+      if (entry) { await refreshList(); _showExtToast(`"${entry.name}" installed`) }
+    } catch (e) { alert('Error: ' + e.message) }
+  })
+
+  document.getElementById(`ext-load-crx-${tabId}`)?.addEventListener('click', async () => {
+    try {
+      const entry = await window.extensionAPI.installCrx()
+      if (entry) { await refreshList(); _showExtToast(`"${entry.name}" installed`) }
+    } catch (e) { alert('Error: ' + e.message) }
+  })
+
+  document.getElementById(`ext-webstore-${tabId}`)?.addEventListener('click', async () => {
+    const input = prompt(
+      'Paste a Chrome Web Store URL or 32-char extension ID:\n\n' +
+      'Example URL: https://chrome.google.com/webstore/detail/ublock-origin/cjpalhdlnbpafiamejdnhcphjbkeiagm\n' +
+      'Example ID:  cjpalhdlnbpafiamejdnhcphjbkeiagm'
+    )
+    if (!input) return
+    const match = input.match(/\/([a-z]{32})(?:[/?#]|$)/) || [null, input.match(/^[a-z]{32}$/) ? input : null]
+    const extId = match[1]
+    if (!extId) { alert('Could not find a valid extension ID in that input.\nExpected a 32-character lowercase string.'); return }
+    const toast = _showExtToast('⬇️ Downloading from Web Store…', 60000)
+    window.extensionAPI.onInstallProgress(({ step }) => {
+      const labels = { downloading: '⬇️ Downloading…', extracting: '📦 Extracting…', loading: '⚡ Loading into session…' }
+      toast.textContent = labels[step] || step
+    })
+    try {
+      const entry = await window.extensionAPI.installFromWebStore(extId)
+      toast.remove()
+      await refreshList()
+      _showExtToast(`✓ "${entry.name}" installed — restart recommended`)
+    } catch (e) {
+      toast.remove()
+      alert('Install failed: ' + e.message)
+    }
+  })
+
+  // Live-update when another tab triggers a list change
+  window.extensionAPI.onListUpdated(async () => {
+    if (getActiveTab()?.isExtensionsPage) await refreshList()
+  })
+
+  refreshList()
+}
+
+function _showExtToast(msg, duration = 3500) {
+  const t = document.createElement('div')
+  t.style.cssText = `position:fixed;bottom:40px;left:50%;transform:translateX(-50%);
+    background:rgba(12,8,20,0.97);border:1px solid rgba(155,61,255,0.4);border-radius:8px;
+    padding:10px 20px;font-size:12px;color:#9b3dff;z-index:99999;white-space:nowrap;
+    animation:tab-appear 0.2s ease;font-family:'Exo 2',sans-serif;`
+  t.textContent = msg
+  document.body.appendChild(t)
+  if (duration < 60000) setTimeout(() => t.remove(), duration)
+  return t
+}
+
 dom.urlInput.addEventListener('keydown', (e) => {
   if (e.key==='Enter') navigate(dom.urlInput.value)
   else if (e.key==='Escape') {
@@ -1708,6 +2019,7 @@ dom.btnNewTab.addEventListener('click',       ()=>createTab())
 dom.btnNewEphemeral?.addEventListener('click',()=>createTab(null,{ephemeral:true}))
 dom.btnSettings?.addEventListener('click',    ()=>navigate('flux://settings'))
 dom.btnDownloads?.addEventListener('click',   ()=>navigate('flux://downloads'))
+document.getElementById('btn-extensions')?.addEventListener('click', () => navigate('flux://extensions'))
 dom.btnMinimize.addEventListener('click', ()=>window.windowAPI.minimize())
 dom.btnMaximize.addEventListener('click', ()=>window.windowAPI.maximize())
 dom.btnClose.addEventListener('click',    ()=>window.windowAPI.close())
@@ -1734,6 +2046,8 @@ document.addEventListener('keydown', (e) => {
   if (ctrl && key==='h')                     { e.preventDefault(); navigate('flux://history') }
   if (ctrl && key==='f')                     { e.preventDefault(); openFind() }
   if (ctrl && key==='j')                     { e.preventDefault(); navigate('flux://downloads') }
+  if (ctrl && shift && key==='E')            { e.preventDefault(); navigate('flux://extensions') }
+  if (ctrl && shift && key==='M')            { e.preventDefault(); toggleResourceSidebar() }
   if (key==='F5' || (ctrl && key==='r'))     { e.preventDefault(); getActiveTab()?.webview.reload() }
   if (key==='F1')                            { e.preventDefault(); dom.shortcutOverlay.classList.contains('hidden')?showShortcutOverlay():hideShortcutOverlay() }
   if (key==='Escape' && !dom.shortcutOverlay.classList.contains('hidden')) hideShortcutOverlay()
